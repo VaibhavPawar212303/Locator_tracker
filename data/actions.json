@@ -1,0 +1,20 @@
+{
+    "actions": [
+        {
+            "action_type": "click",
+            "css_selector": "section#gc-wrapper > main:nth-of-type(1) > devsite-content:nth-of-type(2) > article:nth-of-type(1) > div:nth-of-type(3) > section:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > p:nth-of-type(2)",
+            "xpath": "//section[@id=\"gc-wrapper\"]/main[1]/devsite-content[2]/article[1]/div[3]/section[1]/div[1]/header[1]/div[1]/div[1]/p[2]",
+            "text": "Google Developers Codelabs provide a guided, tutorial, hands-on\n  coding experience. Most codelabs will step you through the process of building\n  a small application, or adding a new feature to an existing application. They\n  cover a wide range of topics such as Android Wear, Google Compute Engine,\n  ARCore, and Google APIs on iOS.",
+            "id": null,
+            "class_name": null
+        },
+        {
+            "action_type": "click",
+            "css_selector": "section#gc-wrapper > devsite-footer-linkboxes:nth-of-type(3) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(1) > h3:nth-of-type(1)",
+            "xpath": "//section[@id=\"gc-wrapper\"]/devsite-footer-linkboxes[3]/nav[1]/ul[1]/li[1]/h3[1]",
+            "text": "Connect",
+            "id": null,
+            "class_name": "devsite-footer-linkbox-heading no-link"
+        }
+    ]
+}

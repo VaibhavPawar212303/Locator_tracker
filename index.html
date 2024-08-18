@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fetch and Display Content</title>
+    <link rel="stylesheet" href="styles/styles.css" />
+  </head>
+  <body>
+    <div id="sidebar">
+      <h2>Actions</h2>
+      <button id="saveButton" onclick="saveActions()">Save Actions</button>
+      <div id="log">
+        <h3>Action Log:</h3>
+        <div id="actionLog"></div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="search-bar">
+        <input type="text" id="urlInput" placeholder="Enter URL here..." />
+        <button id="fetchButton" onclick="fetchContent()">Fetch Content</button>
+      </div>
+      <div id="content-container"></div>
+    </div>
+
+    <script src="scripts/scripts.js"></script>
+  </body>
+</html>
