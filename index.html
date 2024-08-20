@@ -1,29 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fetch and Display Content</title>
-    <link rel="stylesheet" href="styles/styles.css" />
-  </head>
-  <body>
-    <div id="sidebar">
-      <h2>Actions</h2>
-      <button id="saveButton" onclick="saveActions()">Save Actions</button>
-      <div id="log">
-        <h3>Action Log:</h3>
-        <div id="actionLog"></div>
-      </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fetch and Display Content</title>
+  <style>
+    body {
+      display: flex;
+      margin: 0;
+    }
+    #main-content {
+      width: 800px; /* Adjust width for the left side */
+      padding: 20px;
+    }
+    #browser-view {
+      width: 400px; /* Adjust width for the right side */
+      height: 100vh; /* Full height */
+      border-left: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div id="main-content">
+    <div class="search-bar">
+      <input type="text" id="urlInput" placeholder="Enter URL here..." />
+      <button id="fetchButton" onclick="fetchContent()">Fetch Content</button>
     </div>
-
-    <div id="content">
-      <div class="search-bar">
-        <input type="text" id="urlInput" placeholder="Enter URL here..." />
-        <button id="fetchButton" onclick="fetchContent()">Fetch Content</button>
-      </div>
-      <div id="content-container"></div>
-    </div>
-
-    <script src="scripts/scripts.js"></script>
-  </body>
+    <div id="content-container"></div>
+  </div>
+  <div id="browser-view">
+    <!-- Electron's BrowserView content will be shown here -->
+  </div>
+  <script src="renderer.js"></script>
+</body>
 </html>
