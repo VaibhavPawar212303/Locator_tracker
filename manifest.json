@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tab Manager",
+  "name": "Atomation Tracker",
   "version": "1.0",
-  "description": "Opens a new tab and provides buttons to open and close tabs.",
+  "description": "A simple extension to open and close a popup.",
   "action": {
     "default_popup": "popup.html"
   },
