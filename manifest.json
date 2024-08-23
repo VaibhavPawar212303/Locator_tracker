@@ -1,24 +1,13 @@
 {
-    "manifest_version": 3,
-    "name": "User Action Tracker",
-    "version": "1.0",
-    "description": "Tracks user actions and element locators.",
-    "permissions": [
-      "activeTab",
-      "scripting",
-      "storage"
-    ],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "content_scripts": [
-      {
-        "matches": ["<all_urls>"],
-        "js": ["content.js"]
-      }
-    ],
-    "action": {
-      "default_popup": "popup.html"
-    }
-  }
-  
+  "manifest_version": 3,
+  "name": "Tab Manager",
+  "version": "1.0",
+  "description": "Opens a new tab and provides buttons to open and close tabs.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["tabs"]
+}

@@ -1,16 +1,34 @@
-<!-- popup.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>User Actions</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Manager</title>
   <style>
-    body { font-family: Arial, sans-serif; }
-    #actions { max-height: 300px; overflow-y: auto; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      margin: 5px;
+    }
+    #close-tab {
+      background-color: #f44336;
+    }
   </style>
 </head>
 <body>
-  <h1>User Actions</h1>
-  <div id="actions"></div>
+  <h1>Tab Manager</h1>
+  <button id="open-tab">Start Recording....</button>
+  <button id="close-tab">Stop Recording....</button>
   <script src="popup.js"></script>
 </body>
 </html>
