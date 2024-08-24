@@ -1,0 +1,13 @@
+/* Example styles for the popup */
+body {
+    font-family: Arial, sans-serif;
+    padding: 10px;
+  }
+  
+  #log {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+  }
+  

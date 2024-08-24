@@ -1,0 +1,13 @@
+{
+    "name": "user-action-tracker",
+    "version": "1.0.0",
+    "description": "A Chrome extension with Puppeteer for tracking user actions.",
+    "main": "trackActions.js",
+    "scripts": {
+        "start": "node puppeteer/trackActions.js"
+    },
+    "dependencies": {
+        "puppeteer": "^23.1.1",
+        "user-action-tracker": "file:"
+    }
+}
