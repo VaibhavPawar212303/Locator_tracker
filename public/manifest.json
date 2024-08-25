@@ -1,0 +1,17 @@
+{
+  "name": "Playwright CRX",
+  "version": "0.8.0",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Record"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "permissions": ["debugger", "tabs", "contextMenus", "storage"]
+}
