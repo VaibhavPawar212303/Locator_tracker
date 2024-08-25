@@ -52,8 +52,12 @@ export interface LoadedTsConfig {
   allowJs?: boolean;
 }
 
-export function tsConfigLoader(tsconfigPathOrDirecotry: string): LoadedTsConfig[] {
-  const configPath = resolveConfigPath(tsconfigPathOrDirecotry);
+export interface TsConfigLoaderParams {
+  cwd: string;
+}
+
+export function tsConfigLoader({ cwd, }: TsConfigLoaderParams): LoadedTsConfig[] {
+  const configPath = resolveConfigPath(cwd);
 
   if (!configPath)
     return [];
@@ -63,12 +67,12 @@ export function tsConfigLoader(tsconfigPathOrDirecotry: string): LoadedTsConfig[
   return [config, ...references];
 }
 
-function resolveConfigPath(tsconfigPathOrDirecotry: string): string | undefined {
-  if (fs.statSync(tsconfigPathOrDirecotry).isFile()) {
-    return path.resolve(tsconfigPathOrDirecotry);
+function resolveConfigPath(cwd: string): string | undefined {
+  if (fs.statSync(cwd).isFile()) {
+    return path.resolve(cwd);
   }
 
-  const configAbsolutePath = walkForTsConfig(tsconfigPathOrDirecotry);
+  const configAbsolutePath = walkForTsConfig(cwd);
   return configAbsolutePath ? path.resolve(configAbsolutePath) : undefined;
 }
 

@@ -1637,6 +1637,7 @@ scheme.FrameSelectOptionParams = tObject({
   }))),
   force: tOptional(tBoolean),
   timeout: tOptional(tNumber),
+  noWaitAfter: tOptional(tBoolean),
 });
 scheme.FrameSelectOptionResult = tObject({
   values: tArray(tString),
@@ -2000,6 +2001,7 @@ scheme.ElementHandleSelectOptionParams = tObject({
   }))),
   force: tOptional(tBoolean),
   timeout: tOptional(tNumber),
+  noWaitAfter: tOptional(tBoolean),
 });
 scheme.ElementHandleSelectOptionResult = tObject({
   values: tArray(tString),

@@ -23,12 +23,13 @@ import type { Highlight, HighlightOptions } from '../highlight';
 import clipPaths from './clipPaths';
 
 interface RecorderDelegate {
-  performAction?(action: actions.PerformOnRecordAction): Promise<void>;
+  performAction?(action: actions.Action): Promise<void>;
   recordAction?(action: actions.Action): Promise<void>;
   setSelector?(selector: string): Promise<void>;
   setMode?(mode: Mode): Promise<void>;
   setOverlayState?(state: OverlayState): Promise<void>;
   highlightUpdated?(): void;
+  uninstall?(): void;
 }
 
 interface RecorderTool {
@@ -483,7 +484,7 @@ class RecordActionTool implements RecorderTool {
     return true;
   }
 
-  private async _performAction(action: actions.PerformOnRecordAction) {
+  private async _performAction(action: actions.Action) {
     this._hoveredElement = null;
     this._hoveredModel = null;
     this._activeModel = null;
@@ -552,14 +553,28 @@ class TextAssertionTool implements RecorderTool {
   private _recorder: Recorder;
   private _hoverHighlight: HighlightModel | null = null;
   private _action: actions.AssertAction | null = null;
-  private _dialog: Dialog;
+  private _dialogElement: HTMLElement | null = null;
+  private _acceptButton: HTMLElement;
+  private _cancelButton: HTMLElement;
+  private _keyboardListener: ((event: KeyboardEvent) => void) | undefined;
   private _textCache = new Map<Element | ShadowRoot, ElementText>();
   private _kind: 'text' | 'value';
 
   constructor(recorder: Recorder, kind: 'text' | 'value') {
     this._recorder = recorder;
     this._kind = kind;
-    this._dialog = new Dialog(recorder);
+
+    this._acceptButton = this._recorder.document.createElement('x-pw-tool-item');
+    this._acceptButton.title = 'Accept';
+    this._acceptButton.classList.add('accept');
+    this._acceptButton.appendChild(this._recorder.document.createElement('x-div'));
+    this._acceptButton.addEventListener('click', () => this._commit());
+
+    this._cancelButton = this._recorder.document.createElement('x-pw-tool-item');
+    this._cancelButton.title = 'Close';
+    this._cancelButton.classList.add('cancel');
+    this._cancelButton.appendChild(this._recorder.document.createElement('x-div'));
+    this._cancelButton.addEventListener('click', () => this._closeDialog());
   }
 
   cursor() {
@@ -567,7 +582,7 @@ class TextAssertionTool implements RecorderTool {
   }
 
   cleanup() {
-    this._dialog.close();
+    this._closeDialog();
     this._hoverHighlight = null;
   }
 
@@ -576,7 +591,7 @@ class TextAssertionTool implements RecorderTool {
     if (this._kind === 'value') {
       this._commitAssertValue();
     } else {
-      if (!this._dialog.isShowing())
+      if (!this._dialogElement)
         this._showDialog();
     }
   }
@@ -597,7 +612,7 @@ class TextAssertionTool implements RecorderTool {
   }
 
   onMouseMove(event: MouseEvent) {
-    if (this._dialog.isShowing())
+    if (this._dialogElement)
       return;
     const target = this._recorder.deepEventTarget(event);
     if (this._hoverHighlight?.elements[0] === target)
@@ -677,9 +692,9 @@ class TextAssertionTool implements RecorderTool {
   }
 
   private _commit() {
-    if (!this._action || !this._dialog.isShowing())
+    if (!this._action || !this._dialogElement)
       return;
-    this._dialog.close();
+    this._closeDialog();
     this._recorder.delegate.recordAction?.(this._action);
     this._recorder.delegate.setMode?.('recording');
   }
@@ -690,6 +705,31 @@ class TextAssertionTool implements RecorderTool {
     this._action = this._generateAction();
     if (!this._action || this._action.name !== 'assertText')
       return;
+
+    this._dialogElement = this._recorder.document.createElement('x-pw-dialog');
+    this._keyboardListener = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        this._closeDialog();
+        return;
+      }
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        if (this._dialogElement)
+          this._commit();
+        return;
+      }
+    };
+
+    this._recorder.document.addEventListener('keydown', this._keyboardListener, true);
+    const toolbarElement = this._recorder.document.createElement('x-pw-tools-list');
+    const labelElement = this._recorder.document.createElement('label');
+    labelElement.textContent = 'Assert that element contains text';
+    toolbarElement.appendChild(labelElement);
+    toolbarElement.appendChild(this._recorder.document.createElement('x-spacer'));
+    toolbarElement.appendChild(this._acceptButton);
+    toolbarElement.appendChild(this._cancelButton);
+
+    this._dialogElement.appendChild(toolbarElement);
+    const bodyElement = this._recorder.document.createElement('x-pw-dialog-body');
 
     const action = this._action;
     const textElement = this._recorder.document.createElement('textarea');
@@ -708,16 +748,22 @@ class TextAssertionTool implements RecorderTool {
       textElement.classList.toggle('does-not-match', !matches);
     };
     textElement.addEventListener('input', updateAndValidate);
+    bodyElement.appendChild(textElement);
 
-    const label = 'Assert that element contains text';
-    const dialogElement = this._dialog.show({
-      label,
-      body: textElement,
-      onCommit: () => this._commit(),
-    });
-    const position = this._recorder.highlight.tooltipPosition(this._recorder.highlight.firstBox()!, dialogElement);
-    this._dialog.moveTo(position.anchorTop, position.anchorLeft);
+    this._dialogElement.appendChild(bodyElement);
+    this._recorder.highlight.appendChild(this._dialogElement);
+    const position = this._recorder.highlight.tooltipPosition(this._recorder.highlight.firstBox()!, this._dialogElement);
+    this._dialogElement.style.top = position.anchorTop + 'px';
+    this._dialogElement.style.left = position.anchorLeft + 'px';
     textElement.focus();
+  }
+
+  private _closeDialog() {
+    if (!this._dialogElement)
+      return;
+    this._dialogElement.remove();
+    this._recorder.document.removeEventListener('keydown', this._keyboardListener!);
+    this._dialogElement = null;
   }
 
   private _commitAssertValue() {
@@ -983,6 +1029,13 @@ export class Recorder {
     this.document.adoptedStyleSheets.push(this._stylesheet);
   }
 
+  uninstall(){
+    this._currentTool.cleanup?.();
+    this.highlight.uninstall();
+    removeEventListeners(this._listeners);
+    this.injectedScript.document.head.removeChild(this._styleElement);
+  }
+
   private _switchCurrentTool() {
     const newTool = this._tools[this.state.mode];
     if (newTool === this._currentTool)
@@ -1174,87 +1227,6 @@ export class Recorder {
   }
 }
 
-class Dialog {
-  private _recorder: Recorder;
-  private _dialogElement: HTMLElement | null = null;
-  private _keyboardListener: ((event: KeyboardEvent) => void) | undefined;
-
-  constructor(recorder: Recorder) {
-    this._recorder = recorder;
-  }
-
-  isShowing(): boolean {
-    return !!this._dialogElement;
-  }
-
-  show(options: {
-    label: string;
-    body: Element;
-    onCommit: () => void;
-    onCancel?: () => void;
-  }) {
-    const acceptButton = this._recorder.document.createElement('x-pw-tool-item');
-    acceptButton.title = 'Accept';
-    acceptButton.classList.add('accept');
-    acceptButton.appendChild(this._recorder.document.createElement('x-div'));
-    acceptButton.addEventListener('click', () => options.onCommit());
-
-    const cancelButton = this._recorder.document.createElement('x-pw-tool-item');
-    cancelButton.title = 'Close';
-    cancelButton.classList.add('cancel');
-    cancelButton.appendChild(this._recorder.document.createElement('x-div'));
-    cancelButton.addEventListener('click', () => {
-      this.close();
-      options.onCancel?.();
-    });
-
-    this._dialogElement = this._recorder.document.createElement('x-pw-dialog');
-    this._keyboardListener = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        this.close();
-        options.onCancel?.();
-        return;
-      }
-      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-        if (this._dialogElement)
-          options.onCommit();
-        return;
-      }
-    };
-
-    this._recorder.document.addEventListener('keydown', this._keyboardListener, true);
-    const toolbarElement = this._recorder.document.createElement('x-pw-tools-list');
-    const labelElement = this._recorder.document.createElement('label');
-    labelElement.textContent = options.label;
-    toolbarElement.appendChild(labelElement);
-    toolbarElement.appendChild(this._recorder.document.createElement('x-spacer'));
-    toolbarElement.appendChild(acceptButton);
-    toolbarElement.appendChild(cancelButton);
-
-    this._dialogElement.appendChild(toolbarElement);
-    const bodyElement = this._recorder.document.createElement('x-pw-dialog-body');
-    bodyElement.appendChild(options.body);
-    this._dialogElement.appendChild(bodyElement);
-    this._recorder.highlight.appendChild(this._dialogElement);
-    return this._dialogElement;
-  }
-
-  moveTo(top: number, left: number) {
-    if (!this._dialogElement)
-      return;
-    this._dialogElement.style.top = top + 'px';
-    this._dialogElement.style.left = left + 'px';
-  }
-
-  close() {
-    if (!this._dialogElement)
-      return;
-    this._dialogElement.remove();
-    this._recorder.document.removeEventListener('keydown', this._keyboardListener!);
-    this._dialogElement = null;
-  }
-}
-
 function deepActiveElement(document: Document): Element | null {
   let activeElement = document.activeElement;
   while (activeElement && activeElement.shadowRoot && activeElement.shadowRoot.activeElement)
@@ -1361,13 +1333,14 @@ function createSvgElement(doc: Document, { tagName, attrs, children }: SvgJson):
 }
 
 interface Embedder {
-  __pw_recorderPerformAction(action: actions.PerformOnRecordAction): Promise<void>;
+  __pw_recorderPerformAction(action: actions.Action): Promise<void>;
   __pw_recorderRecordAction(action: actions.Action): Promise<void>;
   __pw_recorderState(): Promise<UIState>;
   __pw_recorderSetSelector(selector: string): Promise<void>;
   __pw_recorderSetMode(mode: Mode): Promise<void>;
   __pw_recorderSetOverlayState(state: OverlayState): Promise<void>;
   __pw_refreshOverlay(): void;
+  __pw_uninstall(): void;
 }
 
 export class PollingRecorder implements RecorderDelegate {
@@ -1384,7 +1357,11 @@ export class PollingRecorder implements RecorderDelegate {
     const refreshOverlay = () => {
       this._pollRecorderMode().catch(e => console.log(e)); // eslint-disable-line no-console
     };
+    const uninstall = () => {
+      this._recorder.uninstall();
+    };
     this._embedder.__pw_refreshOverlay = refreshOverlay;
+    this._embedder.__pw_uninstall = uninstall;
     refreshOverlay();
   }
 
@@ -1407,7 +1384,7 @@ export class PollingRecorder implements RecorderDelegate {
     this._pollRecorderModeTimer = this._recorder.injectedScript.builtinSetTimeout(() => this._pollRecorderMode(), pollPeriod);
   }
 
-  async performAction(action: actions.PerformOnRecordAction) {
+  async performAction(action: actions.Action) {
     await this._embedder.__pw_recorderPerformAction(action);
   }
 

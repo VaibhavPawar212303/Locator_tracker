@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import * as os from 'os';
 import { TimeoutSettings } from '../common/timeoutSettings';
 import { createGuid, debugMode } from '../utils';
 import { mkdirIfNeeded } from '../utils/fileUtils';
@@ -85,7 +86,7 @@ export abstract class BrowserContext extends SdkObject {
   private _customCloseHandler?: () => Promise<any>;
   readonly _tempDirs: string[] = [];
   private _settingStorageState = false;
-  initScripts: InitScript[] = [];
+  readonly initScripts: InitScript[] = [];
   private _routesInFlight = new Set<network.Route>();
   private _debugger!: Debugger;
   _closeReason: string | undefined;
@@ -270,7 +271,9 @@ export abstract class BrowserContext extends SdkObject {
   protected abstract doClearPermissions(): Promise<void>;
   protected abstract doSetHTTPCredentials(httpCredentials?: types.Credentials): Promise<void>;
   protected abstract doAddInitScript(initScript: InitScript): Promise<void>;
-  protected abstract doRemoveNonInternalInitScripts(): Promise<void>;
+  protected abstract doRemoveInitScripts(): Promise<void>;
+  protected abstract doExposeBinding(binding: PageBinding): Promise<void>;
+  protected abstract doRemoveExposedBindings(): Promise<void>;
   protected abstract doUpdateRequestInterception(): Promise<void>;
   protected abstract doClose(reason: string | undefined): Promise<void>;
   protected abstract onClosePersistent(): void;
@@ -317,16 +320,15 @@ export abstract class BrowserContext extends SdkObject {
     }
     const binding = new PageBinding(name, playwrightBinding, needsHandle);
     this._pageBindings.set(name, binding);
-    await this.doAddInitScript(binding.initScript);
-    const frames = this.pages().map(page => page.frames()).flat();
-    await Promise.all(frames.map(frame => frame.evaluateExpression(binding.initScript.source).catch(e => {})));
+    await this.doExposeBinding(binding);
   }
 
   async _removeExposedBindings() {
-    for (const [key, binding] of this._pageBindings) {
-      if (!binding.internal)
+    for (const key of this._pageBindings.keys()) {
+      if (!key.startsWith('__pw'))
         this._pageBindings.delete(key);
     }
+    await this.doRemoveExposedBindings();
   }
 
   async grantPermissions(permissions: string[], origin?: string) {
@@ -412,8 +414,8 @@ export abstract class BrowserContext extends SdkObject {
   }
 
   async _removeInitScripts(): Promise<void> {
-    this.initScripts = this.initScripts.filter(script => script.internal);
-    await this.doRemoveNonInternalInitScripts();
+    this.initScripts.splice(0, this.initScripts.length);
+    await this.doRemoveInitScripts();
   }
 
   async setRequestInterceptor(handler: network.RouteHandler | undefined): Promise<void> {
@@ -699,8 +701,11 @@ export function validateBrowserContextOptions(options: channels.BrowserNewContex
     options.recordVideo.size!.width &= ~1;
     options.recordVideo.size!.height &= ~1;
   }
-  if (options.proxy)
+  if (options.proxy) {
+    if (!browserOptions.proxy && browserOptions.isChromium && os.platform() === 'win32')
+      throw new Error(`Browser needs to be launched with the global proxy. If all contexts override the proxy, global proxy will be never used and can be any string, for example "launch({ proxy: { server: 'http://per-context' } })"`);
     options.proxy = normalizeProxySettings(options.proxy);
+  }
   verifyGeolocation(options.geolocation);
 }
 

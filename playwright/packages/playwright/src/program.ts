@@ -286,7 +286,6 @@ function overridesFromOptions(options: { [key: string]: any }): ConfigCLIOverrid
     reporter: resolveReporterOption(options.reporter),
     shard: shardPair ? { current: shardPair[0], total: shardPair[1] } : undefined,
     timeout: options.timeout ? parseInt(options.timeout, 10) : undefined,
-    tsconfig: options.tsconfig ? path.resolve(process.cwd(), options.tsconfig) : undefined,
     ignoreSnapshots: options.ignoreSnapshots ? !!options.ignoreSnapshots : undefined,
     updateSnapshots: options.updateSnapshots ? 'all' as const : undefined,
     workers: options.workers,
@@ -308,7 +307,9 @@ function overridesFromOptions(options: { [key: string]: any }): ConfigCLIOverrid
   if (options.headed || options.debug)
     overrides.use = { headless: false };
   if (!options.ui && options.debug) {
-    overrides.debug = true;
+    overrides.maxFailures = 1;
+    overrides.timeout = 0;
+    overrides.workers = 1;
     process.env.PWDEBUG = '1';
   }
   if (!options.ui && options.trace) {
@@ -364,7 +365,6 @@ const testOptions: [string, string][] = [
   ['--shard <shard>', `Shard tests and execute only the selected shard, specify in the form "current/all", 1-based, for example "3/5"`],
   ['--timeout <timeout>', `Specify test timeout threshold in milliseconds, zero for unlimited (default: ${defaultTimeout})`],
   ['--trace <mode>', `Force tracing mode, can be ${kTraceModes.map(mode => `"${mode}"`).join(', ')}`],
-  ['--tsconfig <path>', `Path to a single tsconfig applicable to all imported files (default: look up tsconfig for each imported file separately)`],
   ['--ui', `Run tests in interactive UI mode`],
   ['--ui-host <host>', 'Host to serve UI on; specifying this option opens UI in a browser tab'],
   ['--ui-port <port>', 'Port to serve UI on, 0 for any free port; specifying this option opens UI in a browser tab'],

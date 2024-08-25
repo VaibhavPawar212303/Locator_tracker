@@ -31,7 +31,6 @@ The recommended approach is to use `setFixedTime` to set the time to a specific 
   - `requestIdleCallback`
   - `cancelIdleCallback`
   - `performance`
-  - `Event.timeStamp`
 :::
 
 ## Test with predefined time

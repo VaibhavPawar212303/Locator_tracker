@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+import React from 'react';
 import '@web/common.css';
 import { applyTheme } from '@web/theme';
 import '@web/third_party/vscode/codicon.css';
-import * as ReactDOM from 'react-dom/client';
+import * as ReactDOM from 'react-dom';
 import { UIModeView } from './ui/uiModeView';
 
 (async () => {
@@ -38,5 +39,5 @@ import { UIModeView } from './ui/uiModeView';
     setInterval(function() { fetch('ping'); }, 10000);
   }
 
-  ReactDOM.createRoot(document.querySelector('#root')!).render(<UIModeView/>);
+  ReactDOM.render(<UIModeView></UIModeView>, document.querySelector('#root'));
 })();

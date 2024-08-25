@@ -64,12 +64,8 @@ class TestServer {
 
 class TestServerDispatcher implements TestServerInterface {
   private _configLocation: ConfigLocation;
-
-  private _watcher: Watcher;
-  private _watchedProjectDirs = new Set<string>();
-  private _ignoredProjectOutputs = new Set<string>();
-  private _watchedTestDependencies = new Set<string>();
-
+  private _globalWatcher: Watcher;
+  private _testWatcher: Watcher;
   private _testRun: { run: Promise<reporterTypes.FullResult['status']>, stop: ManualPromise<void> } | undefined;
   readonly transport: Transport;
   private _queue = Promise.resolve();
@@ -90,7 +86,8 @@ class TestServerDispatcher implements TestServerInterface {
           gracefullyProcessExitDoNotHang(0);
       },
     };
-    this._watcher = new Watcher(events => {
+    this._globalWatcher = new Watcher('deep', () => this._dispatchEvent('listChanged', {}));
+    this._testWatcher = new Watcher('flat', events => {
       const collector = new Set<string>();
       events.forEach(f => collectAffectedTestFiles(f.file, collector));
       this._dispatchEvent('testFilesChanged', { testFiles: [...collector] });
@@ -114,11 +111,14 @@ class TestServerDispatcher implements TestServerInterface {
   }
 
   async initialize(params: Parameters<TestServerInterface['initialize']>[0]): ReturnType<TestServerInterface['initialize']> {
-    // Note: this method can be called multiple times, for example from a new connection after UI mode reload.
-    this._serializer = params.serializer || require.resolve('./uiModeReporter');
-    this._closeOnDisconnect = !!params.closeOnDisconnect;
-    await this._setInterceptStdio(!!params.interceptStdio);
-    this._watchTestDirs = !!params.watchTestDirs;
+    if (params.serializer)
+      this._serializer = params.serializer;
+    if (params.closeOnDisconnect)
+      this._closeOnDisconnect = true;
+    if (params.interceptStdio)
+      await this._setInterceptStdio(true);
+    if (params.watchTestDirs)
+      this._watchTestDirs = true;
   }
 
   async ping() {}
@@ -158,6 +158,7 @@ class TestServerDispatcher implements TestServerInterface {
       return { status: 'failed', report };
     }
 
+    webServerPluginsForConfig(config).forEach(p => config.plugins.push({ factory: p }));
     const { collectingReporter, report } = await this._collectingReporter();
     const listReporter = new ListReporter();
     const taskRunner = createTaskRunnerForWatchSetup(config, [collectingReporter, listReporter]);
@@ -278,26 +279,22 @@ class TestServerDispatcher implements TestServerInterface {
     await taskRunner.reporter.onEnd({ status });
     await taskRunner.reporter.onExit();
 
-    this._watchedProjectDirs = new Set();
-    this._ignoredProjectOutputs = new Set();
+    const projectDirs = new Set<string>();
+    const projectOutputs = new Set<string>();
     for (const p of config.projects) {
-      this._watchedProjectDirs.add(p.project.testDir);
-      this._ignoredProjectOutputs.add(p.project.outputDir);
+      projectDirs.add(p.project.testDir);
+      projectOutputs.add(p.project.outputDir);
     }
 
     const result = await resolveCtDirs(config);
     if (result) {
-      this._watchedProjectDirs.add(result.templateDir);
-      this._ignoredProjectOutputs.add(result.outDir);
+      projectDirs.add(result.templateDir);
+      projectOutputs.add(result.outDir);
     }
 
     if (this._watchTestDirs)
-      await this.updateWatcher(false);
+      this._globalWatcher.update([...projectDirs], [...projectOutputs], false);
     return { report, status };
-  }
-
-  private async updateWatcher(reportPending: boolean) {
-    await this._watcher.update([...this._watchedProjectDirs, ...this._watchedTestDependencies], [...this._ignoredProjectOutputs], reportPending);
   }
 
   async runTests(params: Parameters<TestServerInterface['runTests']>[0]): ReturnType<TestServerInterface['runTests']> {
@@ -367,12 +364,12 @@ class TestServerDispatcher implements TestServerInterface {
   }
 
   async watch(params: { fileNames: string[]; }) {
-    this._watchedTestDependencies = new Set();
+    const files = new Set<string>();
     for (const fileName of params.fileNames) {
-      this._watchedTestDependencies.add(fileName);
-      dependenciesForTestFile(fileName).forEach(file => this._watchedTestDependencies.add(file));
+      files.add(fileName);
+      dependenciesForTestFile(fileName).forEach(file => files.add(file));
     }
-    await this.updateWatcher(true);
+    this._testWatcher.update([...files], [], true);
   }
 
   async findRelatedTestFiles(params: Parameters<TestServerInterface['findRelatedTestFiles']>[0]): ReturnType<TestServerInterface['findRelatedTestFiles']> {
@@ -414,12 +411,10 @@ class TestServerDispatcher implements TestServerInterface {
     try {
       const config = await loadConfig(this._configLocation, overrides);
       // Preserve plugin instances between setup and build.
-      if (!this._plugins) {
-        webServerPluginsForConfig(config).forEach(p => config.plugins.push({ factory: p }));
+      if (!this._plugins)
         this._plugins = config.plugins || [];
-      } else {
+      else
         config.plugins.splice(0, config.plugins.length, ...this._plugins);
-      }
       return { config };
     } catch (e) {
       return { config: null, error: serializeError(e) };

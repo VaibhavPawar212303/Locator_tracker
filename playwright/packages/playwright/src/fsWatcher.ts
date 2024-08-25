@@ -21,24 +21,26 @@ export type FSEvent = { event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkD
 
 export class Watcher {
   private _onChange: (events: FSEvent[]) => void;
-  private _watchedPaths: string[] = [];
+  private _watchedFiles: string[] = [];
   private _ignoredFolders: string[] = [];
   private _collector: FSEvent[] = [];
   private _fsWatcher: FSWatcher | undefined;
   private _throttleTimer: NodeJS.Timeout | undefined;
+  private _mode: 'flat' | 'deep';
 
-  constructor(onChange: (events: FSEvent[]) => void) {
+  constructor(mode: 'flat' | 'deep', onChange: (events: FSEvent[]) => void) {
+    this._mode = mode;
     this._onChange = onChange;
   }
 
-  async update(watchedPaths: string[], ignoredFolders: string[], reportPending: boolean) {
-    if (JSON.stringify([this._watchedPaths, this._ignoredFolders]) === JSON.stringify(watchedPaths, ignoredFolders))
+  update(watchedFiles: string[], ignoredFolders: string[], reportPending: boolean) {
+    if (JSON.stringify([this._watchedFiles, this._ignoredFolders]) === JSON.stringify(watchedFiles, ignoredFolders))
       return;
 
     if (reportPending)
       this._reportEventsIfAny();
 
-    this._watchedPaths = watchedPaths;
+    this._watchedFiles = watchedFiles;
     this._ignoredFolders = ignoredFolders;
     void this._fsWatcher?.close();
     this._fsWatcher = undefined;
@@ -46,18 +48,20 @@ export class Watcher {
     clearTimeout(this._throttleTimer);
     this._throttleTimer = undefined;
 
-    if (!this._watchedPaths.length)
+    if (!this._watchedFiles.length)
       return;
 
     const ignored = [...this._ignoredFolders, '**/node_modules/**'];
-    this._fsWatcher = chokidar.watch(watchedPaths, { ignoreInitial: true, ignored }).on('all', async (event, file) => {
+    this._fsWatcher = chokidar.watch(watchedFiles, { ignoreInitial: true, ignored }).on('all', async (event, file) => {
       if (this._throttleTimer)
         clearTimeout(this._throttleTimer);
+      if (this._mode === 'flat' && event !== 'add' && event !== 'change')
+        return;
+      if (this._mode === 'deep' && event !== 'add' && event !== 'change' && event !== 'unlink' && event !== 'addDir' && event !== 'unlinkDir')
+        return;
       this._collector.push({ event, file });
       this._throttleTimer = setTimeout(() => this._reportEventsIfAny(), 250);
     });
-
-    await new Promise((resolve, reject) => this._fsWatcher!.once('ready', resolve).once('error', reject));
   }
 
   async close() {

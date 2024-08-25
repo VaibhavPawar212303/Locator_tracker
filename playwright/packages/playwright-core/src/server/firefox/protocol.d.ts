@@ -220,6 +220,11 @@ export module Protocol {
       }|null;
     };
     export type setDefaultViewportReturnValue = void;
+    export type setScrollbarsHiddenParameters = {
+      browserContextId?: string;
+      hidden: boolean;
+    };
+    export type setScrollbarsHiddenReturnValue = void;
     export type setInitScriptsParameters = {
       browserContextId?: string;
       scripts: {
@@ -1111,6 +1116,7 @@ export module Protocol {
     "Browser.setDownloadOptions": Browser.setDownloadOptionsParameters;
     "Browser.setTouchOverride": Browser.setTouchOverrideParameters;
     "Browser.setDefaultViewport": Browser.setDefaultViewportParameters;
+    "Browser.setScrollbarsHidden": Browser.setScrollbarsHiddenParameters;
     "Browser.setInitScripts": Browser.setInitScriptsParameters;
     "Browser.addBinding": Browser.addBindingParameters;
     "Browser.grantPermissions": Browser.grantPermissionsParameters;
@@ -1191,6 +1197,7 @@ export module Protocol {
     "Browser.setDownloadOptions": Browser.setDownloadOptionsReturnValue;
     "Browser.setTouchOverride": Browser.setTouchOverrideReturnValue;
     "Browser.setDefaultViewport": Browser.setDefaultViewportReturnValue;
+    "Browser.setScrollbarsHidden": Browser.setScrollbarsHiddenReturnValue;
     "Browser.setInitScripts": Browser.setInitScriptsReturnValue;
     "Browser.addBinding": Browser.addBindingReturnValue;
     "Browser.grantPermissions": Browser.grantPermissionsReturnValue;

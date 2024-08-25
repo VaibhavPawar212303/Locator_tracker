@@ -20,9 +20,6 @@ export const colors = colorsLibrary;
 import debugLibrary from 'debug';
 export const debug = debugLibrary;
 
-import dotenvLibrary from 'dotenv';
-export const dotenv = dotenvLibrary;
-
 export { getProxyForUrl } from 'proxy-from-env';
 
 export { HttpsProxyAgent } from 'https-proxy-agent';

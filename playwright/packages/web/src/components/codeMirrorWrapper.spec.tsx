@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import React from 'react';
 import { expect, test } from '@playwright/experimental-ct-react';
 import { CodeMirrorWrapper } from './codeMirrorWrapper';
 

@@ -37,7 +37,7 @@ export class SnapshotServer {
       return new Response(null, { status: 404 });
     const renderedSnapshot = snapshot.render();
     this._snapshotIds.set(snapshotUrl, snapshot);
-    return new Response(renderedSnapshot.html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return new Response(renderedSnapshot.html, { status: 200, headers: { 'Content-Type': 'text/html' } });
   }
 
   serveSnapshotInfo(pathname: string, searchParams: URLSearchParams): Response {
@@ -85,9 +85,7 @@ export class SnapshotServer {
       contentType = `${contentType}; charset=utf-8`;
 
     const headers = new Headers();
-    // "x-unknown" in the har means "no content type".
-    if (contentType !== 'x-unknown')
-      headers.set('Content-Type', contentType);
+    headers.set('Content-Type', contentType);
     for (const { name, value } of resource.response.headers)
       headers.set(name, value);
     headers.delete('Content-Encoding');

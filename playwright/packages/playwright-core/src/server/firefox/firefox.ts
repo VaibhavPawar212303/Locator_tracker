@@ -20,12 +20,11 @@ import path from 'path';
 import { FFBrowser } from './ffBrowser';
 import { kBrowserCloseMessageId } from './ffConnection';
 import { BrowserType, kNoXServerRunningError } from '../browserType';
-import type { BrowserReadyState } from '../browserType';
 import type { Env } from '../../utils/processLauncher';
 import type { ConnectionTransport } from '../transport';
 import type { BrowserOptions } from '../browser';
 import type * as types from '../types';
-import { ManualPromise, wrapInASCIIBox } from '../../utils';
+import { wrapInASCIIBox } from '../../utils';
 import type { SdkObject } from '../instrumentation';
 import type { ProtocolError } from '../protocolError';
 
@@ -34,11 +33,11 @@ export class Firefox extends BrowserType {
     super(parent, 'firefox');
   }
 
-  override connectToTransport(transport: ConnectionTransport, options: BrowserOptions): Promise<FFBrowser> {
+  _connectToTransport(transport: ConnectionTransport, options: BrowserOptions): Promise<FFBrowser> {
     return FFBrowser.connect(this.attribution.playwright, transport, options);
   }
 
-  override doRewriteStartupLog(error: ProtocolError): ProtocolError {
+  _doRewriteStartupLog(error: ProtocolError): ProtocolError {
     if (!error.logs)
       return error;
     // https://github.com/microsoft/playwright/issues/6500
@@ -49,7 +48,7 @@ export class Firefox extends BrowserType {
     return error;
   }
 
-  override amendEnvironment(env: Env, userDataDir: string, executable: string, browserArguments: string[]): Env {
+  _amendEnvironment(env: Env, userDataDir: string, executable: string, browserArguments: string[]): Env {
     if (!path.isAbsolute(os.homedir()))
       throw new Error(`Cannot launch Firefox with relative home directory. Did you set ${os.platform() === 'win32' ? 'USERPROFILE' : 'HOME'} to a relative path?`);
     if (os.platform() === 'linux') {
@@ -61,12 +60,12 @@ export class Firefox extends BrowserType {
     return env;
   }
 
-  override attemptToGracefullyCloseBrowser(transport: ConnectionTransport): void {
+  _attemptToGracefullyCloseBrowser(transport: ConnectionTransport): void {
     const message = { method: 'Browser.close', params: {}, id: kBrowserCloseMessageId };
     transport.send(message);
   }
 
-  override defaultArgs(options: types.LaunchOptions, isPersistent: boolean, userDataDir: string): string[] {
+  _defaultArgs(options: types.LaunchOptions, isPersistent: boolean, userDataDir: string): string[] {
     const { args = [], headless } = options;
     const userDataDirArg = args.find(arg => arg.startsWith('-profile') || arg.startsWith('--profile'));
     if (userDataDirArg)
@@ -88,27 +87,6 @@ export class Firefox extends BrowserType {
     else
       firefoxArguments.push('-silent');
     return firefoxArguments;
-  }
-
-  override readyState(options: types.LaunchOptions): BrowserReadyState | undefined {
-    return new JugglerReadyState();
-  }
-}
-
-class JugglerReadyState implements BrowserReadyState {
-  private readonly _jugglerPromise = new ManualPromise<void>();
-
-  onBrowserOutput(message: string): void {
-    if (message.includes('Juggler listening to the pipe'))
-      this._jugglerPromise.resolve();
-  }
-  onBrowserExit(): void {
-    // Unblock launch when browser prematurely exits.
-    this._jugglerPromise.resolve();
-  }
-  async waitUntilReady(): Promise<{ wsEndpoint?: string }> {
-    await this._jugglerPromise;
-    return { };
   }
 }
 

@@ -16,7 +16,7 @@
 
 import url from 'url';
 import { addToCompilationCache, serializeCompilationCache } from '../transform/compilationCache';
-import { singleTSConfig, transformConfig } from '../transform/transform';
+import { transformConfig } from '../transform/transform';
 import { PortTransport } from '../transform/portTransport';
 
 let loaderChannel: PortTransport | undefined;
@@ -67,15 +67,9 @@ export async function incorporateCompilationCache() {
   addToCompilationCache(result.cache);
 }
 
-export async function configureESMLoader() {
-  if (!loaderChannel)
-    return;
-  await loaderChannel.send('setSingleTSConfig', { tsconfig: singleTSConfig() });
-  await loaderChannel.send('addToCompilationCache', { cache: serializeCompilationCache() });
-}
-
-export async function configureESMLoaderTransformConfig() {
+export async function initializeEsmLoader() {
   if (!loaderChannel)
     return;
   await loaderChannel.send('setTransformConfig', { config: transformConfig() });
+  await loaderChannel.send('addToCompilationCache', { cache: serializeCompilationCache() });
 }

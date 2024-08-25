@@ -174,9 +174,7 @@ test('should run by project', async ({ runUITest }) => {
   await expect.poll(dumpTestTree(page)).toBe(`
     ▼ ❌ a.test.ts
       ► ◯ passes
-      ▼ ❌ fails
-          ❌ foo <=
-          ◯ bar
+      ► ❌ fails <=
       ► ❌ suite
     ▼ ❌ b.test.ts
       ► ◯ passes

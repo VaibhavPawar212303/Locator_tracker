@@ -63,6 +63,6 @@ export const LogTab: React.FunctionComponent<{
       <span className='log-list-duration'>{entry.time}</span>
       {entry.message}
     </div>}
-    notSelectable={true}
+    noHighlightOnHover={true}
   />;
 };

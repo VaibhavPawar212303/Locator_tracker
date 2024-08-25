@@ -24,10 +24,10 @@ import { Selectors } from './selectors';
 import { WebKit } from './webkit/webkit';
 import type { CallMetadata } from './instrumentation';
 import { createInstrumentation, SdkObject } from './instrumentation';
-import { debugLogger, type Language } from '../utils';
+import { debugLogger } from '../utils/debugLogger';
 import type { Page } from './page';
 import { DebugController } from './debugController';
-import type { BrowserType } from './browserType';
+import type { Language } from '../utils/isomorphic/locatorGenerators';
 
 type PlaywrightOptions = {
   socksProxyPort?: number;
@@ -38,11 +38,11 @@ type PlaywrightOptions = {
 
 export class Playwright extends SdkObject {
   readonly selectors: Selectors;
-  readonly chromium: BrowserType;
+  readonly chromium: Chromium;
   readonly android: Android;
   readonly electron: Electron;
-  readonly firefox: BrowserType;
-  readonly webkit: BrowserType;
+  readonly firefox: Firefox;
+  readonly webkit: WebKit;
   readonly options: PlaywrightOptions;
   readonly debugController: DebugController;
   private _allPages = new Set<Page>();

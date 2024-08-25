@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import React from 'react';
 import { test, expect } from '@playwright/experimental-ct-react';
 import type { ImageDiff } from './imageDiffView';
 import { ImageDiffView } from './imageDiffView';

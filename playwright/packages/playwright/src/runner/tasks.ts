@@ -63,7 +63,7 @@ export class TestRun {
 export function createTaskRunner(config: FullConfigInternal, reporters: ReporterV2[]): TaskRunner<TestRun> {
   const taskRunner = TaskRunner.create<TestRun>(reporters, config.config.globalTimeout);
   addGlobalSetupTasks(taskRunner, config);
-  taskRunner.addTask('load tests', createLoadTask('in-process', { filterOnly: true, failOnLoadErrors: true }));
+  taskRunner.addTask('load tests', createLoadTask('in-process', { filterOnly: true, filterOnlyChanged: true, failOnLoadErrors: true }));
   addRunTasks(taskRunner, config);
   return taskRunner;
 }
@@ -76,14 +76,14 @@ export function createTaskRunnerForWatchSetup(config: FullConfigInternal, report
 
 export function createTaskRunnerForWatch(config: FullConfigInternal, reporters: ReporterV2[], additionalFileMatcher?: Matcher): TaskRunner<TestRun> {
   const taskRunner = TaskRunner.create<TestRun>(reporters);
-  taskRunner.addTask('load tests', createLoadTask('out-of-process', { filterOnly: true,  failOnLoadErrors: false, doNotRunDepsOutsideProjectFilter: true, additionalFileMatcher }));
+  taskRunner.addTask('load tests', createLoadTask('out-of-process', { filterOnly: true, filterOnlyChanged: true, failOnLoadErrors: false, doNotRunDepsOutsideProjectFilter: true, additionalFileMatcher }));
   addRunTasks(taskRunner, config);
   return taskRunner;
 }
 
 export function createTaskRunnerForTestServer(config: FullConfigInternal, reporters: ReporterV2[]): TaskRunner<TestRun> {
   const taskRunner = TaskRunner.create<TestRun>(reporters);
-  taskRunner.addTask('load tests', createLoadTask('out-of-process', { filterOnly: true, failOnLoadErrors: false, doNotRunDepsOutsideProjectFilter: true }));
+  taskRunner.addTask('load tests', createLoadTask('out-of-process', { filterOnly: true, filterOnlyChanged: true, failOnLoadErrors: false, doNotRunDepsOutsideProjectFilter: true }));
   addRunTasks(taskRunner, config);
   return taskRunner;
 }
@@ -108,7 +108,7 @@ function addRunTasks(taskRunner: TaskRunner<TestRun>, config: FullConfigInternal
 
 export function createTaskRunnerForList(config: FullConfigInternal, reporters: ReporterV2[], mode: 'in-process' | 'out-of-process', options: { failOnLoadErrors: boolean }): TaskRunner<TestRun> {
   const taskRunner = TaskRunner.create<TestRun>(reporters, config.config.globalTimeout);
-  taskRunner.addTask('load tests', createLoadTask(mode, { ...options, filterOnly: false }));
+  taskRunner.addTask('load tests', createLoadTask(mode, { ...options, filterOnly: false, filterOnlyChanged: false }));
   taskRunner.addTask('report begin', createReportBeginTask());
   return taskRunner;
 }
@@ -222,14 +222,14 @@ function createListFilesTask(): Task<TestRun> {
   };
 }
 
-function createLoadTask(mode: 'out-of-process' | 'in-process', options: { filterOnly: boolean, failOnLoadErrors: boolean, doNotRunDepsOutsideProjectFilter?: boolean, additionalFileMatcher?: Matcher }): Task<TestRun> {
+function createLoadTask(mode: 'out-of-process' | 'in-process', options: { filterOnly: boolean, filterOnlyChanged: boolean, failOnLoadErrors: boolean, doNotRunDepsOutsideProjectFilter?: boolean, additionalFileMatcher?: Matcher }): Task<TestRun> {
   return {
     setup: async (reporter, testRun, errors, softErrors) => {
       await collectProjectsAndTestFiles(testRun, !!options.doNotRunDepsOutsideProjectFilter, options.additionalFileMatcher);
       await loadFileSuites(testRun, mode, options.failOnLoadErrors ? errors : softErrors);
 
       let cliOnlyChangedMatcher: Matcher | undefined = undefined;
-      if (testRun.config.cliOnlyChanged) {
+      if (testRun.config.cliOnlyChanged && options.filterOnlyChanged) {
         for (const plugin of testRun.config.plugins)
           await plugin.instance?.populateDependencies?.();
         const changedFiles = await detectChangedTestFiles(testRun.config.cliOnlyChanged, testRun.config.configDir);
@@ -239,7 +239,7 @@ function createLoadTask(mode: 'out-of-process' | 'in-process', options: { filter
       testRun.rootSuite = await createRootSuite(testRun, options.failOnLoadErrors ? errors : softErrors, !!options.filterOnly, cliOnlyChangedMatcher);
       testRun.failureTracker.onRootSuite(testRun.rootSuite);
       // Fail when no tests.
-      if (options.failOnLoadErrors && !testRun.rootSuite.allTests().length && !testRun.config.cliPassWithNoTests && !testRun.config.config.shard && !testRun.config.cliOnlyChanged) {
+      if (options.failOnLoadErrors && !testRun.rootSuite.allTests().length && !testRun.config.cliPassWithNoTests && !testRun.config.config.shard) {
         if (testRun.config.cliArgs.length) {
           throw new Error([
             `No tests found.`,

@@ -59,398 +59,14 @@ export default defineConfig({
 });
 ```
 
+
 ## CI configurations
 
-The [Command line tools](./browsers#install-system-dependencies) can be used to install all operating system dependencies in CI.
+The [Command line tools](./browsers#install-system-dependencies) can be used to install all operating system dependencies on GitHub Actions.
 
 ### GitHub Actions
 
-#### On push/pull_request
-* langs: js
-
-Tests will run on push or pull request on branches main/master. The [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) will install all dependencies, install Playwright and then run the tests. It will also create the HTML report.
-
-```yml js title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 18
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
-```
-
-#### On push/pull_request
-* langs: python, java, csharp
-
-Tests will run on push or pull request on branches main/master. The [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) will install all dependencies, install Playwright and then run the tests.
-
-```yml python title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Ensure browsers are installed
-      run: python -m playwright install --with-deps
-    - name: Run your tests
-      run: pytest --tracing=retain-on-failure
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-traces
-        path: test-results/
-```
-
-```yml java title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-    - name: Build & Install
-      run: mvn -B install -D skipTests --no-transfer-progress
-    - name: Ensure browsers are installed
-      run: mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
-    - name: Run tests
-      run: mvn test
-```
-
-```yml csharp title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup dotnet
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-    - name: Build & Install
-      run: dotnet build
-    - name: Ensure browsers are installed
-      run: pwsh bin/Debug/net8.0/playwright.ps1 install --with-deps
-    - name: Run your tests
-      run: dotnet test
-```
-
-#### On push/pull_request (sharded)
-* langs: js
-
-GitHub Actions supports [sharding tests between multiple jobs](https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs). Check out our [sharding doc](./test-sharding) to learn more about sharding and to see a [GitHub actions example](./test-sharding.md#github-actions-example) of how to configure a job to run your tests on multiple machines as well as how to merge the HTML reports.
-
-#### Via Containers
-
-GitHub Actions support [running jobs in a container](https://docs.github.com/en/actions/using-jobs/running-jobs-in-a-container) by using the [`jobs.<job_id>.container`](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idcontainer) option. This is useful to not pollute the host environment with dependencies and to have a consistent environment for e.g. screenshots/visual regression testing across different operating systems.
-
-```yml js title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  playwright:
-    name: 'Playwright Tests'
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-      - name: Install dependencies
-        run: npm ci
-      - name: Run your tests
-        run: npx playwright test
-        env:
-          HOME: /root
-```
-
-```yml python title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  playwright:
-    name: 'Playwright Tests'
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright/python:v%%VERSION%%-jammy
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r local-requirements.txt
-          pip install -e .
-      - name: Run your tests
-        run: pytest
-        env:
-          HOME: /root
-```
-
-```yml java title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  playwright:
-    name: 'Playwright Tests'
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Build & Install
-        run: mvn -B install -D skipTests --no-transfer-progress
-      - name: Run tests
-        run: mvn test
-        env:
-          HOME: /root
-```
-
-```yml csharp title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  playwright:
-    name: 'Playwright Tests'
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup dotnet
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      - run: dotnet build
-      - name: Run your tests
-        run: dotnet test
-        env:
-          HOME: /root
-```
-
-#### On deployment
-
-This will start the tests after a [GitHub Deployment](https://developer.github.com/v3/repos/deployments/) went into the `success` state.
-Services like Vercel use this pattern so you can run your end-to-end tests on their deployed environment.
-
-```yml js title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  deployment_status:
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success'
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 18
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-      env:
-        PLAYWRIGHT_TEST_BASE_URL: ${{ github.event.deployment_status.target_url }}
-```
-
-```yml python title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  deployment_status:
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success'
-    steps:
-    - uses: actions/checkout@v4
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Ensure browsers are installed
-      run: python -m playwright install --with-deps
-    - name: Run tests
-      run: pytest
-      env:
-        # This might depend on your test-runner
-        PLAYWRIGHT_TEST_BASE_URL: ${{ github.event.deployment_status.target_url }}
-```
-
-```yml java title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  deployment_status:
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success'
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-    - name: Build & Install
-      run: mvn -B install -D skipTests --no-transfer-progress
-    - name: Install Playwright
-      run: mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
-    - name: Run tests
-      run: mvn test
-      env:
-        # This might depend on your test-runner
-        PLAYWRIGHT_TEST_BASE_URL: ${{ github.event.deployment_status.target_url }}
-```
-
-```yml csharp title=".github/workflows/playwright.yml"
-name: Playwright Tests
-on:
-  deployment_status:
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success'
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup dotnet
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-    - run: dotnet build
-    - name: Ensure browsers are installed
-      run: pwsh bin/Debug/net8.0/playwright.ps1 install --with-deps
-    - name: Run tests
-      run: dotnet test
-      env:
-        # This might depend on your test-runner
-        PLAYWRIGHT_TEST_BASE_URL: ${{ github.event.deployment_status.target_url }}
-```
-
-#### Fail-Fast
-* langs: js
-
-Large test suites can take very long to execute. By executing a preliminary test run with the `--only-changed` flag, you can run test files that are likely to fail first.
-This will give you a faster feedback loop and slightly lower CI consumption while working on Pull Requests.
-To detect test files affected by your changeset, `--only-changed` analyses your suites' dependency graph. This is a heuristic and might miss tests, so it's important that you always run the full test suite after the preliminary test run.
-
-```yml js title=".github/workflows/playwright.yml" {20-23}
-name: Playwright Tests
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 18
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run changed Playwright tests
-      run: npx playwright test --only-changed=$GITHUB_BASE_REF
-      if: github.event_name == 'pull_request'
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
-```
+Check out our [GitHub Actions](ci-intro.md) guide for more information on how to run your tests on GitHub.
 
 ### Docker
 
@@ -680,7 +296,7 @@ trigger:
 
 pool:
   vmImage: ubuntu-latest
-container: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+container: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
 
 steps:
 - task: NodeTool@0
@@ -702,7 +318,7 @@ trigger:
 
 pool:
   vmImage: ubuntu-latest
-container: mcr.microsoft.com/playwright/python:v%%VERSION%%-noble
+container: mcr.microsoft.com/playwright/python:v%%VERSION%%-jammy
 
 steps:
 - task: UsePythonVersion@0
@@ -724,7 +340,7 @@ trigger:
 
 pool:
   vmImage: ubuntu-latest
-container: mcr.microsoft.com/playwright/java:v%%VERSION%%-noble
+container: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
 
 steps:
 - task: JavaToolInstaller@0
@@ -745,7 +361,7 @@ trigger:
 
 pool:
   vmImage: ubuntu-latest
-container: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-noble
+container: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
 
 steps:
 - task: UseDotNet@2
@@ -768,28 +384,28 @@ Running Playwright on CircleCI is very similar to running on GitHub Actions. In 
 executors:
   pw-jammy-development:
     docker:
-      - image: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+      - image: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
 ```
 
 ```yml python
 executors:
   pw-jammy-development:
     docker:
-      - image: mcr.microsoft.com/playwright/python:v%%VERSION%%-noble
+      - image: mcr.microsoft.com/playwright/python:v%%VERSION%%-jammy
 ```
 
 ```yml java
 executors:
   pw-jammy-development:
     docker:
-      - image: mcr.microsoft.com/playwright/java:v%%VERSION%%-noble
+      - image: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
 ```
 
 ```yml csharp
 executors:
   pw-jammy-development:
     docker:
-      - image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-noble
+      - image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
 ```
 
 Note: When using the docker agent definition, you are specifying the resource class of where playwright runs to the 'medium' tier [here](https://circleci.com/docs/configuration-reference?#docker-execution-environment). The default behavior of Playwright is to set the number of workers to the detected core count (2 in the case of the medium tier). Overriding the number of workers to greater than this number will cause unnecessary timeouts and failures.
@@ -814,7 +430,7 @@ to run tests on Jenkins.
 
 ```groovy js
 pipeline {
-   agent { docker { image 'mcr.microsoft.com/playwright:v%%VERSION%%-noble' } }
+   agent { docker { image 'mcr.microsoft.com/playwright:v%%VERSION%%-jammy' } }
    stages {
       stage('e2e-tests') {
          steps {
@@ -828,7 +444,7 @@ pipeline {
 
 ```groovy python
 pipeline {
-   agent { docker { image 'mcr.microsoft.com/playwright/python:v%%VERSION%%-noble' } }
+   agent { docker { image 'mcr.microsoft.com/playwright/python:v%%VERSION%%-jammy' } }
    stages {
       stage('e2e-tests') {
          steps {
@@ -842,7 +458,7 @@ pipeline {
 
 ```groovy java
 pipeline {
-   agent { docker { image 'mcr.microsoft.com/playwright/java:v%%VERSION%%-noble' } }
+   agent { docker { image 'mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy' } }
    stages {
       stage('e2e-tests') {
          steps {
@@ -856,7 +472,7 @@ pipeline {
 
 ```groovy csharp
 pipeline {
-   agent { docker { image 'mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-noble' } }
+   agent { docker { image 'mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy' } }
    stages {
       stage('e2e-tests') {
          steps {
@@ -873,19 +489,19 @@ pipeline {
 Bitbucket Pipelines can use public [Docker images as build environments](https://confluence.atlassian.com/bitbucket/use-docker-images-as-build-environments-792298897.html). To run Playwright tests on Bitbucket, use our public Docker image ([see Dockerfile](./docker.md)).
 
 ```yml js
-image: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+image: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
 ```
 
 ```yml python
-image: mcr.microsoft.com/playwright/python:v%%VERSION%%-noble
+image: mcr.microsoft.com/playwright/python:v%%VERSION%%-jammy
 ```
 
 ```yml java
-image: mcr.microsoft.com/playwright/java:v%%VERSION%%-noble
+image: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
 ```
 
 ```yml csharp
-image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-noble
+image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
 ```
 
 ### GitLab CI
@@ -898,7 +514,7 @@ stages:
 
 tests:
   stage: test
-  image: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+  image: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
   script:
   ...
 ```
@@ -909,7 +525,7 @@ stages:
 
 tests:
   stage: test
-  image: mcr.microsoft.com/playwright/python:v%%VERSION%%-noble
+  image: mcr.microsoft.com/playwright/python:v%%VERSION%%-jammy
   script:
   ...
 ```
@@ -920,7 +536,7 @@ stages:
 
 tests:
   stage: test
-  image: mcr.microsoft.com/playwright/java:v%%VERSION%%-noble
+  image: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
   script:
   ...
 ```
@@ -931,7 +547,7 @@ stages:
 
 tests:
   stage: test
-  image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-noble
+  image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
   script:
   ...
 ```
@@ -947,7 +563,7 @@ stages:
 
 tests:
   stage: test
-  image: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+  image: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
   parallel: 7
   script:
     - npm ci
@@ -962,7 +578,7 @@ stages:
 
 tests:
   stage: test
-  image: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+  image: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
   parallel:
     matrix:
       - PROJECT: ['chromium', 'webkit']
@@ -978,7 +594,7 @@ To run Playwright tests on Google Cloud Build, use our public Docker image ([see
 
 ```yml
 steps:
-- name: mcr.microsoft.com/playwright:v%%VERSION%%-noble
+- name: mcr.microsoft.com/playwright:v%%VERSION%%-jammy
   script: 
   ...
   env:

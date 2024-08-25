@@ -73,9 +73,7 @@ export class WebServerPlugin implements TestRunnerPlugin {
   }
 
   public async teardown() {
-    debugWebServer(`Terminating the WebServer`);
     await this._killProcess?.();
-    debugWebServer(`Terminated the WebServer`);
   }
 
   private async _startProcess(): Promise<void> {
@@ -113,13 +111,13 @@ export class WebServerPlugin implements TestRunnerPlugin {
 
     debugWebServer(`Process started`);
 
-    launchedProcess.stderr!.on('data', data => {
+    launchedProcess.stderr!.on('data', line => {
       if (debugWebServer.enabled || (this._options.stderr === 'pipe' || !this._options.stderr))
-        this._reporter!.onStdErr?.(prefixOutputLines(data.toString()));
+        this._reporter!.onStdErr?.(colors.dim('[WebServer] ') + line.toString());
     });
-    launchedProcess.stdout!.on('data', data => {
+    launchedProcess.stdout!.on('data', line => {
       if (debugWebServer.enabled || this._options.stdout === 'pipe')
-        this._reporter!.onStdOut?.(prefixOutputLines(data.toString()));
+        this._reporter!.onStdOut?.(colors.dim('[WebServer] ') + line.toString());
     });
   }
 
@@ -201,14 +199,3 @@ export const webServerPluginsForConfig = (config: FullConfigInternal): TestRunne
 
   return webServerPlugins;
 };
-
-function prefixOutputLines(output: string) {
-  const lastIsNewLine = output[output.length - 1] === '\n';
-  let lines = output.split('\n');
-  if (lastIsNewLine)
-    lines.pop();
-  lines = lines.map(line => colors.dim('[WebServer] ') + line);
-  if (lastIsNewLine)
-    lines.push('');
-  return lines.join('\n');
-}

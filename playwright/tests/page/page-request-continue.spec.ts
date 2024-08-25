@@ -393,12 +393,9 @@ it('should continue preload link requests', async ({ page, server, browserName }
   expect(color).toBe('rgb(255, 192, 203)');
 });
 
-it('continue should propagate headers to redirects', {
-  annotation: [
-    { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/28758' },
-    { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/32045' },
-  ]
-}, async ({ page, server }) => {
+it('continue should propagate headers to redirects', async ({ page, server, browserName }) => {
+  it.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/28758' });
+  it.fixme(browserName === 'firefox');
   await server.setRedirect('/redirect', '/empty.html');
   await page.route('**/redirect', route => {
     void route.continue({
@@ -416,11 +413,9 @@ it('continue should propagate headers to redirects', {
 });
 
 it('redirected requests should report overridden headers', {
-  annotation: [
-    { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/31351' },
-    { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/32045' },
-  ]
-}, async ({ page, server }) => {
+  annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/31351' }
+}, async ({ page, server, browserName }) => {
+  it.fixme(browserName === 'firefox');
   await server.setRedirect('/redirect', '/empty.html');
   await page.route('**/redirect', route => {
     const headers = route.request().headers();
@@ -438,12 +433,9 @@ it('redirected requests should report overridden headers', {
   expect((await response.request().allHeaders())['custom']).toBe('value');
 });
 
-it('continue should delete headers on redirects', {
-  annotation: [
-    { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/13106' },
-    { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/32045' },
-  ]
-}, async ({ page, server }) => {
+it('continue should delete headers on redirects', async ({ page, server, browserName }) => {
+  it.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/13106' });
+  it.fixme(browserName === 'firefox');
   await page.goto(server.PREFIX + '/empty.html');
   server.setRoute('/something', (request, response) => {
     response.writeHead(200, { 'Access-Control-Allow-Origin': '*' });

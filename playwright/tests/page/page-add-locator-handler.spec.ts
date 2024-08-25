@@ -87,9 +87,7 @@ test('should work with a custom check', async ({ page, server }) => {
   }
 });
 
-test('should work with locator.hover()', async ({ page, server, headless }) => {
-  test.skip(!headless, 'Stray hovers in headed mode');
-
+test('should work with locator.hover()', async ({ page, server }) => {
   await page.goto(server.PREFIX + '/input/handle-locator.html');
 
   await page.addLocatorHandler(page.getByText('This interstitial covers the button'), async () => {

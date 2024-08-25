@@ -43,7 +43,7 @@ export async function launchApp(browserType: BrowserType, options: {
   }
 
   const context = await browserType.launchPersistentContext(serverSideCallMetadata(), '', {
-    channel: !options.persistentContextOptions?.executablePath ? findChromiumChannel(options.sdkLanguage) : undefined,
+    channel: findChromiumChannel(options.sdkLanguage),
     noDefaultViewport: true,
     ignoreDefaultArgs: ['--enable-automation'],
     colorScheme: 'no-override',

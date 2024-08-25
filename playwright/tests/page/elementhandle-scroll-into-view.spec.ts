@@ -80,9 +80,7 @@ it('should scroll display:contents into view', async ({ page, browserName, brows
   `);
   const div = await page.$('#target');
   await div.scrollIntoViewIfNeeded();
-  const scrollTop = await page.$eval('#container', e => e.scrollTop);
-  // On Android the value is not exact due to various scale conversions.
-  expect(Math.abs(scrollTop - 350)).toBeLessThan(1);
+  expect(await page.$eval('#container', e => e.scrollTop)).toBe(350);
 });
 
 it('should work for visibility:hidden element', async ({ page }) => {

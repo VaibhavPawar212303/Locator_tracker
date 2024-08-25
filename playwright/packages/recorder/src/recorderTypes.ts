@@ -72,6 +72,7 @@ export type CallLog = {
 export type SourceHighlight = {
   line: number;
   type: 'running' | 'paused' | 'error';
+  message?: string;
 };
 
 export type Source = {

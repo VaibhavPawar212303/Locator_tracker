@@ -156,8 +156,8 @@ type SearchValues = {
 
 const searchValuesSymbol = Symbol('searchValues');
 
-function cacheSearchValues(test: TestCaseSummary & { [searchValuesSymbol]?: SearchValues }): SearchValues {
-  const cached = test[searchValuesSymbol];
+function cacheSearchValues(test: TestCaseSummary): SearchValues {
+  const cached = (test as any)[searchValuesSymbol] as SearchValues | undefined;
   if (cached)
     return cached;
 
@@ -178,7 +178,7 @@ function cacheSearchValues(test: TestCaseSummary & { [searchValuesSymbol]?: Sear
     labels: test.tags.map(tag => tag.toLowerCase()),
     annotations: test.annotations.map(a => a.type.toLowerCase() + '=' + a.description?.toLocaleLowerCase())
   };
-  test[searchValuesSymbol] = searchValues;
+  (test as any)[searchValuesSymbol] = searchValues;
   return searchValues;
 }
 

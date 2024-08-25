@@ -177,7 +177,6 @@ export class TestServer {
     this._csp.clear();
     this._extraHeaders.clear();
     this._gzipRoutes.clear();
-    this._server.closeAllConnections();
     const error = new Error('Static Server has been reset');
     for (const subscriber of this._requestSubscribers.values())
       subscriber[rejectSymbol].call(null, error);

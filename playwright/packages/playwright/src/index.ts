@@ -229,7 +229,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
       playwrightLibrary.selectors.setTestIdAttribute(testIdAttribute);
     testInfo.snapshotSuffix = process.platform;
     if (debugMode())
-      (testInfo as TestInfoImpl)._setDebugMode();
+      testInfo.setTimeout(0);
     for (const browserType of [playwright.chromium, playwright.firefox, playwright.webkit]) {
       (browserType as any)._defaultContextOptions = _combinedContextOptions;
       (browserType as any)._defaultContextTimeout = actionTimeout || 0;
@@ -248,11 +248,6 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
   }, { auto: 'all-hooks-included',  title: 'context configuration', box: true } as any],
 
   _setupArtifacts: [async ({ playwright, screenshot }, use, testInfo) => {
-    // This fixture has a separate zero-timeout slot to ensure that artifact collection
-    // happens even after some fixtures or hooks time out.
-    // Now that default test timeout is known, we can replace zero with an actual value.
-    testInfo.setTimeout(testInfo.project.timeout);
-
     const artifactsRecorder = new ArtifactsRecorder(playwright, tracing().artifactsDir(), screenshot);
     await artifactsRecorder.willStartTest(testInfo as TestInfoImpl);
     const csiListener: ClientInstrumentationListener = {
@@ -266,6 +261,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
           title: renderApiCall(apiName, params),
           apiName,
           params,
+          canNestByTime: true,
         });
         userData.userObject = step;
         out.stepId = step.stepId;
@@ -275,7 +271,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
         step?.complete({ error });
       },
       onWillPause: () => {
-        currentTestInfo()?._setDebugMode();
+        currentTestInfo()?.setTimeout(0);
       },
       runAfterCreateBrowserContext: async (context: BrowserContext) => {
         await artifactsRecorder?.didCreateBrowserContext(context);
@@ -302,7 +298,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     clientInstrumentation.removeListener(csiListener);
     await artifactsRecorder.didFinishTest();
 
-  }, { auto: 'all-hooks-included',  title: 'trace recording', box: true, timeout: 0 } as any],
+  }, { auto: 'all-hooks-included',  title: 'trace recording', box: true } as any],
 
   _contextFactory: [async ({ browser, video, _reuseContext, _combinedContextOptions /** mitigate dep-via-auto lack of traceability */ }, use, testInfo) => {
     const testInfoImpl = testInfo as TestInfoImpl;

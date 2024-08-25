@@ -19,7 +19,6 @@ import './chip.css';
 import './colors.css';
 import './common.css';
 import * as icons from './icons';
-import { clsx } from '@web/uiUtils';
 
 export const Chip: React.FC<{
   header: JSX.Element | string,
@@ -32,14 +31,14 @@ export const Chip: React.FC<{
 }> = ({ header, expanded, setExpanded, children, noInsets, dataTestId, targetRef }) => {
   return <div className='chip' data-testid={dataTestId} ref={targetRef}>
     <div
-      className={clsx('chip-header', setExpanded && ' expanded-' + expanded)}
+      className={'chip-header' + (setExpanded ? ' expanded-' + expanded : '')}
       onClick={() => setExpanded?.(!expanded)}
       title={typeof header === 'string' ? header : undefined}>
       {setExpanded && !!expanded && icons.downArrow()}
       {setExpanded && !expanded && icons.rightArrow()}
       {header}
     </div>
-    {(!setExpanded || expanded) && <div className={clsx('chip-body', noInsets && 'chip-body-no-insets')}>{children}</div>}
+    {(!setExpanded || expanded) && <div className={'chip-body' + (noInsets ? ' chip-body-no-insets' : '')}>{children}</div>}
   </div>;
 };
 

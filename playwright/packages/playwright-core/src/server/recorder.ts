@@ -36,14 +36,15 @@ import { RecorderApp } from './recorder/recorderApp';
 import type { CallMetadata, InstrumentationListener, SdkObject } from './instrumentation';
 import type { Point } from '../common/types';
 import type { CallLog, CallLogStatus, EventData, Mode, OverlayState, Source, UIState } from '@recorder/recorderTypes';
-import { createGuid, isUnderTest, monotonicTime, serializeExpectedTextValues } from '../utils';
+import { createGuid, isUnderTest, monotonicTime } from '../utils';
 import { metadataToCallLog } from './recorder/recorderUtils';
 import { Debugger } from './debugger';
 import { EventEmitter } from 'events';
 import { raceAgainstDeadline } from '../utils/timeoutRunner';
 import type { Language, LanguageGenerator } from './recorder/language';
 import { locatorOrSelectorAsSelector } from '../utils/isomorphic/locatorParser';
-import { quoteCSSAttributeValue, eventsHelper, type RegisteredListener } from '../utils';
+import { quoteCSSAttributeValue } from '../utils/isomorphic/stringUtils';
+import { eventsHelper, type RegisteredListener } from './../utils/eventsHelper';
 import type { Dialog } from './dialog';
 
 type BindingSource = { frame: Frame, page: Page };
@@ -235,7 +236,7 @@ export class Recorder implements InstrumentationListener {
         this.onBeforeCall(sdkObject, metadata);
     }
     this._recorderApp?.setPaused(this._debugger.isPaused());
-    this._updateUserSources();
+    this._updateSources();
     this.updateCallLog([...this._currentCallsMetadata.keys()]);
   }
 
@@ -279,11 +280,15 @@ export class Recorder implements InstrumentationListener {
       page.mainFrame().evaluateExpression('window.__pw_refreshOverlay()').catch(() => {});
   }
 
+  async _uninstallInjectedRecorder(page: Page) {
+    await Promise.all(page.frames().map(f => f.evaluateExpression('window.__pw_uninstall()').catch(e => console.error(e))));
+  }
+
   async onBeforeCall(sdkObject: SdkObject, metadata: CallMetadata) {
     if (this._omitCallTracking || this._mode === 'recording' || this._mode === 'assertingText' || this._mode === 'assertingVisibility' || this._mode === 'assertingValue')
       return;
     this._currentCallsMetadata.set(metadata, sdkObject);
-    this._updateUserSources();
+    this._updateSources();
     this.updateCallLog([metadata]);
     if (isScreenshotCommand(metadata)) {
       this.hideHighlightedSelector();
@@ -298,13 +303,21 @@ export class Recorder implements InstrumentationListener {
       return;
     if (!metadata.error)
       this._currentCallsMetadata.delete(metadata);
-    this._updateUserSources();
+    this._updateSources();
     this.updateCallLog([metadata]);
   }
 
-  private _updateUserSources() {
+  clearErrors() {
+    const errors = [...this._currentCallsMetadata.keys()].filter(c => c.error);
+    for (const error of errors)
+      this._currentCallsMetadata.delete(error);
+
+    this._updateSources();
+  }
+
+  private _updateSources() {
     // Remove old decorations.
-    for (const source of this._userSources.values()) {
+    for (const source of [...this._recorderSources, ...this._userSources.values()]) {
       source.highlight = [];
       source.revealLine = undefined;
     }
@@ -315,14 +328,14 @@ export class Recorder implements InstrumentationListener {
       if (!metadata.location)
         continue;
       const { file, line } = metadata.location;
-      let source = this._userSources.get(file);
+      let source = this._userSources.get(file) ?? this._recorderSources.find(rs => rs.id === file);
       if (!source) {
         source = { isRecorded: false, label: file, id: file, text: this._readSource(file), highlight: [], language: languageForFile(file) };
         this._userSources.set(file, source);
       }
       if (line) {
         const paused = this._debugger.isPaused(metadata);
-        source.highlight.push({ line, type: metadata.error ? 'error' : (paused ? 'paused' : 'running') });
+        source.highlight.push({ line, type: metadata.error ? 'error' : (paused ? 'paused' : 'running'), message: metadata.error?.error?.message });
         source.revealLine = line;
         fileToSelect = source.id;
       }
@@ -470,7 +483,7 @@ class ContextRecorder extends EventEmitter {
     // Input actions that potentially lead to navigation are intercepted on the page and are
     // performed by the Playwright.
     await this._context.exposeBinding('__pw_recorderPerformAction', false,
-        (source: BindingSource, action: actions.PerformOnRecordAction) => this._performAction(source.frame, action));
+        (source: BindingSource, action: actions.Action) => this._performAction(source.frame, action));
 
     // Other non-essential actions are simply being recorded.
     await this._context.exposeBinding('__pw_recorderRecordAction', false,
@@ -585,7 +598,7 @@ class ContextRecorder extends EventEmitter {
     return this._params.testIdAttributeName || this._context.selectors().testIdAttributeName() || 'data-testid';
   }
 
-  private async _performAction(frame: Frame, action: actions.PerformOnRecordAction) {
+  private async _performAction(frame: Frame, action: actions.Action) {
     // Commit last action so that no further signals are added to it.
     this._generator.commitLastAction();
 
@@ -595,13 +608,56 @@ class ContextRecorder extends EventEmitter {
       action
     };
 
-    this._generator.willPerformAction(actionInContext);
-    const success = await performAction(frame, action);
-    if (success) {
-      this._generator.didPerformAction(actionInContext);
+    const perform = async (action: string, params: any, cb: (callMetadata: CallMetadata) => Promise<any>) => {
+      const callMetadata: CallMetadata = {
+        id: `call@${createGuid()}`,
+        apiName: 'frame.' + action,
+        objectId: frame.guid,
+        pageId: frame._page.guid,
+        frameId: frame.guid,
+        startTime: monotonicTime(),
+        endTime: 0,
+        type: 'Frame',
+        method: action,
+        params,
+        log: [],
+      };
+      this._generator.willPerformAction(actionInContext);
+
+      try {
+        await frame.instrumentation.onBeforeCall(frame, callMetadata);
+        await cb(callMetadata);
+      } catch (e) {
+        callMetadata.endTime = monotonicTime();
+        await frame.instrumentation.onAfterCall(frame, callMetadata);
+        this._generator.performedActionFailed(actionInContext);
+        return;
+      }
+
+      callMetadata.endTime = monotonicTime();
+      await frame.instrumentation.onAfterCall(frame, callMetadata);
+
       this._setCommittedAfterTimeout(actionInContext);
-    } else {
-      this._generator.performedActionFailed(actionInContext);
+      this._generator.didPerformAction(actionInContext);
+    };
+
+    const kActionTimeout = 5000;
+    if (action.name === 'click') {
+      const { options } = toClickOptions(action);
+      await perform('click', { selector: action.selector }, callMetadata => frame.click(callMetadata, action.selector, { ...options, timeout: kActionTimeout, strict: true }));
+    }
+    if (action.name === 'press') {
+      const modifiers = toModifiers(action.modifiers);
+      const shortcut = [...modifiers, action.key].join('+');
+      await perform('press', { selector: action.selector, key: shortcut }, callMetadata => frame.press(callMetadata, action.selector, shortcut, { timeout: kActionTimeout, strict: true }));
+    }
+    if (action.name === 'check')
+      await perform('check', { selector: action.selector }, callMetadata => frame.check(callMetadata, action.selector, { timeout: kActionTimeout, strict: true }));
+    if (action.name === 'uncheck')
+      await perform('uncheck', { selector: action.selector }, callMetadata => frame.uncheck(callMetadata, action.selector, { timeout: kActionTimeout, strict: true }));
+    if (action.name === 'select') {
+      const values = action.options.map(value => ({ value }));
+      await perform('selectOption', { selector: action.selector, values }, callMetadata => frame.selectOption(callMetadata, action.selector, [], values, { timeout: kActionTimeout, strict: true }));
     }
   }
 
@@ -705,99 +761,4 @@ async function findFrameSelector(frame: Frame): Promise<string | undefined> {
     return selector;
   } catch (e) {
   }
-}
-
-async function innerPerformAction(frame: Frame, action: string, params: any, cb: (callMetadata: CallMetadata) => Promise<any>): Promise<boolean> {
-  const callMetadata: CallMetadata = {
-    id: `call@${createGuid()}`,
-    apiName: 'frame.' + action,
-    objectId: frame.guid,
-    pageId: frame._page.guid,
-    frameId: frame.guid,
-    startTime: monotonicTime(),
-    endTime: 0,
-    type: 'Frame',
-    method: action,
-    params,
-    log: [],
-  };
-
-  try {
-    await frame.instrumentation.onBeforeCall(frame, callMetadata);
-    await cb(callMetadata);
-  } catch (e) {
-    callMetadata.endTime = monotonicTime();
-    await frame.instrumentation.onAfterCall(frame, callMetadata);
-    return false;
-  }
-
-  callMetadata.endTime = monotonicTime();
-  await frame.instrumentation.onAfterCall(frame, callMetadata);
-  return true;
-}
-
-async function performAction(frame: Frame, action: actions.Action): Promise<boolean> {
-  const kActionTimeout = 5000;
-  if (action.name === 'click') {
-    const { options } = toClickOptions(action);
-    return await innerPerformAction(frame, 'click', { selector: action.selector }, callMetadata => frame.click(callMetadata, action.selector, { ...options, timeout: kActionTimeout, strict: true }));
-  }
-  if (action.name === 'press') {
-    const modifiers = toModifiers(action.modifiers);
-    const shortcut = [...modifiers, action.key].join('+');
-    return await innerPerformAction(frame, 'press', { selector: action.selector, key: shortcut }, callMetadata => frame.press(callMetadata, action.selector, shortcut, { timeout: kActionTimeout, strict: true }));
-  }
-  if (action.name === 'fill')
-    return await innerPerformAction(frame, 'fill', { selector: action.selector, text: action.text }, callMetadata => frame.fill(callMetadata, action.selector, action.text, { timeout: kActionTimeout, strict: true }));
-  if (action.name === 'setInputFiles')
-    return await innerPerformAction(frame, 'setInputFiles', { selector: action.selector, files: action.files }, callMetadata => frame.setInputFiles(callMetadata, action.selector, { selector: action.selector, payloads: [], timeout: kActionTimeout, strict: true }));
-  if (action.name === 'check')
-    return await innerPerformAction(frame, 'check', { selector: action.selector }, callMetadata => frame.check(callMetadata, action.selector, { timeout: kActionTimeout, strict: true }));
-  if (action.name === 'uncheck')
-    return await innerPerformAction(frame, 'uncheck', { selector: action.selector }, callMetadata => frame.uncheck(callMetadata, action.selector, { timeout: kActionTimeout, strict: true }));
-  if (action.name === 'select') {
-    const values = action.options.map(value => ({ value }));
-    return await innerPerformAction(frame, 'selectOption', { selector: action.selector, values }, callMetadata => frame.selectOption(callMetadata, action.selector, [], values, { timeout: kActionTimeout, strict: true }));
-  }
-  if (action.name === 'navigate')
-    return await innerPerformAction(frame, 'goto', { url: action.url }, callMetadata => frame.goto(callMetadata, action.url, { timeout: kActionTimeout }));
-  if (action.name === 'closePage')
-    return await innerPerformAction(frame, 'close', {}, callMetadata => frame._page.close(callMetadata));
-  if (action.name === 'openPage')
-    throw Error('Not reached');
-  if (action.name === 'assertChecked') {
-    return await innerPerformAction(frame, 'expect', { selector: action.selector }, callMetadata => frame.expect(callMetadata, action.selector, {
-      selector: action.selector,
-      expression: 'to.be.checked',
-      isNot: !action.checked,
-      timeout: kActionTimeout,
-    }));
-  }
-  if (action.name === 'assertText') {
-    return await innerPerformAction(frame, 'expect', { selector: action.selector }, callMetadata => frame.expect(callMetadata, action.selector, {
-      selector: action.selector,
-      expression: 'to.have.text',
-      expectedText: serializeExpectedTextValues([action.text], { matchSubstring: true, normalizeWhiteSpace: true }),
-      isNot: false,
-      timeout: kActionTimeout,
-    }));
-  }
-  if (action.name === 'assertValue') {
-    return await innerPerformAction(frame, 'expect', { selector: action.selector }, callMetadata => frame.expect(callMetadata, action.selector, {
-      selector: action.selector,
-      expression: 'to.have.value',
-      expectedValue: action.value,
-      isNot: false,
-      timeout: kActionTimeout,
-    }));
-  }
-  if (action.name === 'assertVisible') {
-    return await innerPerformAction(frame, 'expect', { selector: action.selector }, callMetadata => frame.expect(callMetadata, action.selector, {
-      selector: action.selector,
-      expression: 'to.be.visible',
-      isNot: false,
-      timeout: kActionTimeout,
-    }));
-  }
-  throw new Error('Internal error: unexpected action ' + (action as any).name);
 }

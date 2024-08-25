@@ -24,7 +24,6 @@ import type { Env } from '../../utils/processLauncher';
 import { gracefullyCloseSet } from '../../utils/processLauncher';
 import { kBrowserCloseMessageId } from './crConnection';
 import { BrowserType, kNoXServerRunningError } from '../browserType';
-import type { BrowserReadyState } from '../browserType';
 import type { ConnectionTransport, ProtocolRequest } from '../transport';
 import { WebSocketTransport } from '../transport';
 import { CRDevTools } from './crDevTools';
@@ -110,6 +109,12 @@ export class Chromium extends BrowserType {
       artifactsDir,
       downloadsPath: options.downloadsPath || artifactsDir,
       tracesDir: options.tracesDir || artifactsDir,
+      // On Windows context level proxies only work, if there isn't a global proxy
+      // set. This is currently a bug in the CR/Windows networking stack. By
+      // passing an arbitrary value we disable the check in PW land which warns
+      // users in normal (launch/launchServer) mode since otherwise connectOverCDP
+      // does not work at all with proxies on Windows.
+      proxy: { server: 'per-context' },
       originalLaunchOptions: {},
     };
     validateBrowserContextOptions(persistent, browserOptions);
@@ -126,7 +131,7 @@ export class Chromium extends BrowserType {
     return directory ? new CRDevTools(path.join(directory, 'devtools-preferences.json')) : undefined;
   }
 
-  override async connectToTransport(transport: ConnectionTransport, options: BrowserOptions): Promise<CRBrowser> {
+  async _connectToTransport(transport: ConnectionTransport, options: BrowserOptions): Promise<CRBrowser> {
     let devtools = this._devtools;
     if ((options as any).__testHookForDevTools) {
       devtools = this._createDevTools();
@@ -135,7 +140,7 @@ export class Chromium extends BrowserType {
     return CRBrowser.connect(this.attribution.playwright, transport, options, devtools);
   }
 
-  override doRewriteStartupLog(error: ProtocolError): ProtocolError {
+  _doRewriteStartupLog(error: ProtocolError): ProtocolError {
     if (!error.logs)
       return error;
     if (error.logs.includes('Missing X server'))
@@ -156,11 +161,11 @@ export class Chromium extends BrowserType {
     return error;
   }
 
-  override amendEnvironment(env: Env, userDataDir: string, executable: string, browserArguments: string[]): Env {
+  _amendEnvironment(env: Env, userDataDir: string, executable: string, browserArguments: string[]): Env {
     return env;
   }
 
-  override attemptToGracefullyCloseBrowser(transport: ConnectionTransport): void {
+  _attemptToGracefullyCloseBrowser(transport: ConnectionTransport): void {
     const message: ProtocolRequest = { method: 'Browser.close', id: kBrowserCloseMessageId, params: {} };
     transport.send(message);
   }
@@ -272,7 +277,7 @@ export class Chromium extends BrowserType {
     }
   }
 
-  override defaultArgs(options: types.LaunchOptions, isPersistent: boolean, userDataDir: string): string[] {
+  _defaultArgs(options: types.LaunchOptions, isPersistent: boolean, userDataDir: string): string[] {
     const chromeArguments = this._innerDefaultArgs(options);
     chromeArguments.push(`--user-data-dir=${userDataDir}`);
     if (options.useWebSocket)
@@ -343,29 +348,6 @@ export class Chromium extends BrowserType {
     }
     chromeArguments.push(...args);
     return chromeArguments;
-  }
-
-  override readyState(options: types.LaunchOptions): BrowserReadyState | undefined {
-    if (options.useWebSocket || options.args?.some(a => a.startsWith('--remote-debugging-port')))
-      return new ChromiumReadyState();
-    return undefined;
-  }
-}
-
-class ChromiumReadyState implements BrowserReadyState {
-  private readonly _wsEndpoint = new ManualPromise<string|undefined>();
-
-  onBrowserOutput(message: string): void {
-    const match = message.match(/DevTools listening on (.*)/);
-    if (match)
-      this._wsEndpoint.resolve(match[1]);
-  }
-  onBrowserExit(): void {
-    this._wsEndpoint.resolve(undefined);
-  }
-  async waitUntilReady(): Promise<{ wsEndpoint?: string }> {
-    const wsEndpoint = await this._wsEndpoint;
-    return { wsEndpoint };
   }
 }
 

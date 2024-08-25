@@ -256,9 +256,10 @@ test('should suppport component tests', async ({ runInlineTest, git, writeFiles 
 
   const result = await runInlineTest({}, { 'workers': 1, 'only-changed': true });
 
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(1);
   expect(result.passed).toBe(0);
   expect(result.failed).toBe(0);
+  expect(result.output).toContain('No tests found');
 
   const result2 = await runInlineTest({
     'src/button2.test.tsx': `
@@ -364,92 +365,3 @@ test('UI mode is not supported', async ({ runInlineTest }) => {
   expect(result.exitCode).toBe(1);
   expect(result.output).toContain('--only-changed is not supported in UI mode');
 });
-
-test('should run project dependencies of changed tests', {
-  annotation: {
-    type: 'issue',
-    description: 'https://github.com/microsoft/playwright/issues/32070',
-  },
-}, async ({ runInlineTest, git, writeFiles }) => {
-  await writeFiles({
-    'playwright.config.ts': `
-      module.exports = {
-        projects: [
-          { name: 'setup', testMatch: 'setup.spec.ts', },
-          { name: 'main', dependencies: ['setup'] },
-        ],
-      };
-    `,
-    'setup.spec.ts': `
-    import { test, expect } from '@playwright/test';
-
-    test('setup test', async ({ page }) => {
-      console.log('setup test is executed')
-    });
-    `,
-    'a.spec.ts': `
-      import { test, expect } from '@playwright/test';
-      test('fails', () => { expect(1).toBe(2); });
-    `,
-    'b.spec.ts': `
-      import { test, expect } from '@playwright/test';
-      test('fails', () => { expect(1).toBe(2); });
-    `,
-  });
-
-  git(`add .`);
-  git(`commit -m init`);
-
-  const result = await runInlineTest({
-    'c.spec.ts': `
-      import { test, expect } from '@playwright/test';
-      test('fails', () => { expect(1).toBe(2); });
-    `
-  }, { 'only-changed': true });
-
-  expect(result.exitCode).toBe(1);
-  expect(result.failed).toBe(1);
-  expect(result.passed).toBe(1);
-
-  expect(result.output).toContain('setup test is executed');
-});
-
-test('should work with list mode', async ({ runInlineTest, git, writeFiles }) => {
-  await writeFiles({
-    'a.spec.ts': `
-    import { test, expect } from '@playwright/test';
-    test('fails', () => { expect(1).toBe(2); });
-  `,
-  });
-
-  git(`add .`);
-  git(`commit -m init`);
-
-  const result = await runInlineTest({
-    'b.spec.ts': `
-      import { test, expect } from '@playwright/test';
-      test('fails', () => { expect(1).toBe(2); });
-    `
-  }, { 'only-changed': true, 'list': true });
-
-  expect(result.exitCode).toBe(0);
-  expect(result.output).toContain('b.spec.ts');
-  expect(result.output).not.toContain('a.spec.ts');
-});
-
-test('exits successfully if there are no changes', async ({ runInlineTest, git, writeFiles }) => {
-  await writeFiles({
-    'a.spec.ts': `
-    import { test, expect } from '@playwright/test';
-    test('fails', () => { expect(1).toBe(2); });
-  `,
-  });
-
-  git(`add .`);
-  git(`commit -m init`);
-
-  const result = await runInlineTest({}, { 'only-changed': true });
-
-  expect(result.exitCode).toBe(0);
-});
-

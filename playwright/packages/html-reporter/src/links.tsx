@@ -21,7 +21,6 @@ import { TreeItem } from './treeItem';
 import { CopyToClipboard } from './copyToClipboard';
 import './links.css';
 import { linkifyText } from '@web/renderUtils';
-import { clsx } from '@web/uiUtils';
 
 export function navigate(href: string) {
   window.history.pushState({}, '', href);
@@ -49,8 +48,8 @@ export const Link: React.FunctionComponent<{
   className?: string,
   title?: string,
   children: any,
-}> = ({ click, ctrlClick, children, ...rest }) => {
-  return <a {...rest} style={{ textDecoration: 'none', color: 'var(--color-fg-default)', cursor: 'pointer' }} onClick={e => {
+}> = ({ href, click, ctrlClick, className, children, title }) => {
+  return <a style={{ textDecoration: 'none', color: 'var(--color-fg-default)', cursor: 'pointer' }} href={href} className={`${className || ''}`} title={title} onClick={e => {
     if (click) {
       e.preventDefault();
       navigate(e.metaKey || e.ctrlKey ? ctrlClick || click : click);
@@ -65,7 +64,7 @@ export const ProjectLink: React.FunctionComponent<{
   const encoded = encodeURIComponent(projectName);
   const value = projectName === encoded ? projectName : `"${encoded.replace(/%22/g, '%5C%22')}"`;
   return <Link href={`#?q=p:${value}`}>
-    <span className={clsx('label', `label-color-${projectNames.indexOf(projectName) % 6}`)} style={{ margin: '6px 0 0 6px' }}>
+    <span className={'label label-color-' + (projectNames.indexOf(projectName) % 6)} style={{ margin: '6px 0 0 6px' }}>
       {projectName}
     </span>
   </Link>;
@@ -81,7 +80,7 @@ export const AttachmentLink: React.FunctionComponent<{
     {attachment.path && <a href={href || attachment.path} download={downloadFileNameForAttachment(attachment)}>{linkName || attachment.name}</a>}
     {!attachment.path && <span>{linkifyText(attachment.name)}</span>}
   </span>} loadChildren={attachment.body ? () => {
-    return [<div key={1} className='attachment-body'><CopyToClipboard value={attachment.body!}/>{linkifyText(attachment.body!)}</div>];
+    return [<div className='attachment-body'><CopyToClipboard value={attachment.body!}/>{linkifyText(attachment.body!)}</div>];
   } : undefined} depth={0} style={{ lineHeight: '32px' }}></TreeItem>;
 };
 

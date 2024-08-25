@@ -261,16 +261,12 @@ function getAriaBoolean(attr: string | null) {
   return attr === null ? undefined : attr.toLowerCase() === 'true';
 }
 
-function isElementIgnoredForAria(element: Element) {
-  return ['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE'].includes(elementSafeTagName(element));
-}
-
 // https://www.w3.org/TR/wai-aria-1.2/#tree_exclusion, but including "none" and "presentation" roles
 // Not implemented:
 //   `Any descendants of elements that have the characteristic "Children Presentational: True"`
 // https://www.w3.org/TR/wai-aria-1.2/#aria-hidden
 export function isElementHiddenForAria(element: Element): boolean {
-  if (isElementIgnoredForAria(element))
+  if (['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE'].includes(elementSafeTagName(element)))
     return true;
   const style = getElementComputedStyle(element);
   const isSlot = element.nodeName === 'SLOT';
@@ -375,8 +371,7 @@ function getPseudoContent(element: Element, pseudo: '::before' | '::after') {
 }
 
 function getPseudoContentImpl(pseudoStyle: CSSStyleDeclaration | undefined) {
-  // Note: all browsers ignore display:none and visibility:hidden pseudos.
-  if (!pseudoStyle || pseudoStyle.display === 'none' || pseudoStyle.visibility === 'hidden')
+  if (!pseudoStyle)
     return '';
   const content = pseudoStyle.content;
   if ((content[0] === '\'' && content[content.length - 1] === '\'') ||
@@ -501,17 +496,14 @@ function getTextAlternativeInternal(element: Element, options: AccessibleNameOpt
   // step 2a. Hidden Not Referenced: If the current node is hidden and is:
   // Not part of an aria-labelledby or aria-describedby traversal, where the node directly referenced by that relation was hidden.
   // Nor part of a native host language text alternative element (e.g. label in HTML) or attribute traversal, where the root of that traversal was hidden.
-  if (!options.includeHidden) {
-    const isEmbeddedInHiddenReferenceTraversal =
-      !!options.embeddedInLabelledBy?.hidden ||
-      !!options.embeddedInDescribedBy?.hidden ||
-      !!options.embeddedInNativeTextAlternative?.hidden ||
-      !!options.embeddedInLabel?.hidden;
-    if (isElementIgnoredForAria(element) ||
-      (!isEmbeddedInHiddenReferenceTraversal && isElementHiddenForAria(element))) {
-      options.visitedElements.add(element);
-      return '';
-    }
+  if (!options.includeHidden &&
+      !options.embeddedInLabelledBy?.hidden &&
+      !options.embeddedInDescribedBy?.hidden &&
+      !options?.embeddedInNativeTextAlternative?.hidden &&
+      !options?.embeddedInLabel?.hidden &&
+      isElementHiddenForAria(element)) {
+    options.visitedElements.add(element);
+    return '';
   }
 
   const labelledBy = getAriaLabelledByElements(element);

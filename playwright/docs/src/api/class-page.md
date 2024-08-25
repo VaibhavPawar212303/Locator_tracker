@@ -1,5 +1,6 @@
 # class: Page
 * since: v1.8
+* extends: [EventEmitter]
 
 Page provides methods to interact with a single tab in a [Browser], or an
 [extension background page](https://developer.chrome.com/extensions/background_pages) in Chromium. One [Browser]
@@ -619,42 +620,13 @@ The order of evaluation of multiple scripts installed via [`method: BrowserConte
 [`method: Page.addInitScript`] is not defined.
 :::
 
-**Bundling**
-
-If you have a complex script split into several files, it needs to be bundled into a single file first. We recommend running [`esbuild`](https://esbuild.github.io/) or [`webpack`](https://webpack.js.org/) to produce a commonjs module and pass [`option: path`] and [`option: arg`].
-
-```js browser title="mocks/mockRandom.ts"
-// This script can import other files.
-import { defaultValue } from './defaultValue';
-
-export default function(value?: number) {
-  window.Math.random = () => value ?? defaultValue;
-}
-```
-
-```sh
-# bundle with esbuild
-esbuild mocks/mockRandom.ts --bundle --format=cjs --outfile=mocks/mockRandom.js
-```
-
-```js title="tests/example.spec.ts"
-const mockPath = { path: path.resolve(__dirname, '../mocks/mockRandom.js') };
-
-// Passing 42 as an argument to the default export function.
-await page.addInitScript({ path: mockPath }, 42);
-
-// Make sure to pass something even if you do not need to pass an argument.
-// This instructs Playwright to treat the file as a commonjs module.
-await page.addInitScript({ path: mockPath }, '');
-```
-
 ### param: Page.addInitScript.script
 * since: v1.8
 * langs: js
 - `script` <[function]|[string]|[Object]>
   - `path` ?<[path]> Path to the JavaScript file. If `path` is a relative path, then it is resolved relative to the
-    current working directory.
-  - `content` ?<[string]> Raw script content.
+    current working directory. Optional.
+  - `content` ?<[string]> Raw script content. Optional.
 
 Script to be evaluated in the page.
 
@@ -670,9 +642,7 @@ Script to be evaluated in all pages in the browser context.
 * langs: js
 - `arg` ?<[Serializable]>
 
-Optional JSON-serializable argument to pass to [`param: script`].
-* When `script` is a function, the argument is passed to it directly.
-* When `script` is a file path, the file is assumed to be a commonjs module. The default export, either `module.exports` or `module.exports.default`, should be a function that's going to be executed with this argument.
+Optional argument to pass to [`param: script`] (only supported when passing a function).
 
 ### param: Page.addInitScript.path
 * since: v1.8
@@ -3370,17 +3340,6 @@ Specifies the maximum number of times this handler should be called. Unlimited b
 
 By default, after calling the handler Playwright will wait until the overlay becomes hidden, and only then Playwright will continue with the action/assertion that triggered the handler. This option allows to opt-out of this behavior, so that overlay can stay visible after the handler has run.
 
-## async method: Page.removeAllListeners
-* since: v1.47
-
-Removes all the listeners of the given type if the type is given. Otherwise removes all the listeners.
-
-### param: Page.removeAllListeners.type
-* since: v1.47
-- `type` ?<[string]>
-
-### option: Page.removeAllListeners.behavior = %%-remove-all-listeners-options-behavior-%%
-* since: v1.47
 
 ## async method: Page.removeLocatorHandler
 * since: v1.44
@@ -3635,7 +3594,7 @@ A glob pattern, regular expression or predicate to match the request URL. Only r
 * since: v1.32
 - `updateMode` <[HarMode]<"full"|"minimal">>
 
-When set to `minimal`, only record information necessary for routing from HAR. This omits sizes, timing, page, cookies, security and other types of HAR information that are not used when replaying from HAR. Defaults to `minimal`.
+When set to `minimal`, only record information necessary for routing from HAR. This omits sizes, timing, page, cookies, security and other types of HAR information that are not used when replaying from HAR. Defaults to `full`.
 
 ### option: Page.routeFromHAR.updateContent
 * since: v1.32
@@ -3742,7 +3701,7 @@ await page.SelectOptionAsync("select#colors", new[] { "red", "green", "blue" });
 ### option: Page.selectOption.force = %%-input-force-%%
 * since: v1.13
 
-### option: Page.selectOption.noWaitAfter = %%-input-no-wait-after-removed-%%
+### option: Page.selectOption.noWaitAfter = %%-input-no-wait-after-%%
 * since: v1.8
 
 ### option: Page.selectOption.strict = %%-input-strict-%%

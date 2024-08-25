@@ -31,7 +31,7 @@ import * as accessibility from './accessibility';
 import { FileChooser } from './fileChooser';
 import type { Progress } from './progress';
 import { ProgressController } from './progress';
-import { LongStandingScope, assert, createGuid } from '../utils';
+import { LongStandingScope, assert, createGuid, isError } from '../utils';
 import { ManualPromise } from '../utils/manualPromise';
 import { debugLogger } from '../utils/debugLogger';
 import type { ImageComparatorOptions } from '../utils/comparators';
@@ -44,7 +44,7 @@ import { isInvalidSelectorError } from '../utils/isomorphic/selectorParser';
 import { parseEvaluationResultValue, source } from './isomorphic/utilityScriptSerializers';
 import type { SerializedValue } from './isomorphic/utilityScriptSerializers';
 import { TargetClosedError } from './errors';
-import { asLocator } from '../utils';
+import { asLocator } from '../utils/isomorphic/locatorGenerators';
 
 export interface PageDelegate {
   readonly rawMouse: input.RawMouse;
@@ -54,8 +54,10 @@ export interface PageDelegate {
   reload(): Promise<void>;
   goBack(): Promise<boolean>;
   goForward(): Promise<boolean>;
+  exposeBinding(binding: PageBinding): Promise<void>;
+  removeExposedBindings(): Promise<void>;
   addInitScript(initScript: InitScript): Promise<void>;
-  removeNonInternalInitScripts(): Promise<void>;
+  removeInitScripts(): Promise<void>;
   closePage(runBeforeUnload: boolean): Promise<void>;
   potentiallyUninitializedPage(): Page;
   pageOrError(): Promise<Page | Error>;
@@ -152,7 +154,7 @@ export class Page extends SdkObject {
   private _emulatedMedia: Partial<EmulatedMedia> = {};
   private _interceptFileChooser = false;
   private readonly _pageBindings = new Map<string, PageBinding>();
-  initScripts: InitScript[] = [];
+  readonly initScripts: InitScript[] = [];
   readonly _screenshotter: Screenshotter;
   readonly _frameManager: frames.FrameManager;
   readonly accessibility: accessibility.Accessibility;
@@ -340,15 +342,15 @@ export class Page extends SdkObject {
       throw new Error(`Function "${name}" has been already registered in the browser context`);
     const binding = new PageBinding(name, playwrightBinding, needsHandle);
     this._pageBindings.set(name, binding);
-    await this._delegate.addInitScript(binding.initScript);
-    await Promise.all(this.frames().map(frame => frame.evaluateExpression(binding.initScript.source).catch(e => {})));
+    await this._delegate.exposeBinding(binding);
   }
 
   async _removeExposedBindings() {
-    for (const [key, binding] of this._pageBindings) {
-      if (!binding.internal)
+    for (const key of this._pageBindings.keys()) {
+      if (!key.startsWith('__pw'))
         this._pageBindings.delete(key);
     }
+    await this._delegate.removeExposedBindings();
   }
 
   setExtraHTTPHeaders(headers: types.HeadersArray) {
@@ -531,8 +533,8 @@ export class Page extends SdkObject {
   }
 
   async _removeInitScripts() {
-    this.initScripts = this.initScripts.filter(script => script.internal);
-    await this._delegate.removeNonInternalInitScripts();
+    this.initScripts.splice(0, this.initScripts.length);
+    await this._delegate.removeInitScripts();
   }
 
   needsRequestInterception(): boolean {
@@ -725,9 +727,8 @@ export class Page extends SdkObject {
       this._browserContext.addVisitedOrigin(origin);
   }
 
-  allInitScripts() {
-    const bindings = [...this._browserContext._pageBindings.values(), ...this._pageBindings.values()];
-    return [...bindings.map(binding => binding.initScript), ...this._browserContext.initScripts, ...this.initScripts];
+  allBindings() {
+    return [...this._browserContext._pageBindings.values(), ...this._pageBindings.values()];
   }
 
   getBinding(name: string) {
@@ -818,29 +819,23 @@ type BindingPayload = {
 };
 
 export class PageBinding {
-  static kPlaywrightBinding = '__playwright__binding__';
-
   readonly name: string;
   readonly playwrightFunction: frames.FunctionWithSource;
-  readonly initScript: InitScript;
+  readonly source: string;
   readonly needsHandle: boolean;
-  readonly internal: boolean;
 
   constructor(name: string, playwrightFunction: frames.FunctionWithSource, needsHandle: boolean) {
     this.name = name;
     this.playwrightFunction = playwrightFunction;
-    this.initScript = new InitScript(`(${addPageBinding.toString()})(${JSON.stringify(PageBinding.kPlaywrightBinding)}, ${JSON.stringify(name)}, ${needsHandle}, (${source})())`, true /* internal */);
+    this.source = `(${addPageBinding.toString()})(${JSON.stringify(name)}, ${needsHandle}, (${source})())`;
     this.needsHandle = needsHandle;
-    this.internal = name.startsWith('__pw');
   }
 
   static async dispatch(page: Page, payload: string, context: dom.FrameExecutionContext) {
     const { name, seq, serializedArgs } = JSON.parse(payload) as BindingPayload;
     try {
       assert(context.world);
-      const binding = page.getBinding(name);
-      if (!binding)
-        throw new Error(`Function "${name}" is not exposed`);
+      const binding = page.getBinding(name)!;
       let result: any;
       if (binding.needsHandle) {
         const handle = await context.evaluateHandle(takeHandle, { name, seq }).catch(e => null);
@@ -851,7 +846,10 @@ export class PageBinding {
       }
       context.evaluate(deliverResult, { name, seq, result }).catch(e => debugLogger.log('error', e));
     } catch (error) {
-      context.evaluate(deliverResult, { name, seq, error }).catch(e => debugLogger.log('error', e));
+      if (isError(error))
+        context.evaluate(deliverError, { name, seq, message: error.message, stack: error.stack }).catch(e => debugLogger.log('error', e));
+      else
+        context.evaluate(deliverErrorValue, { name, seq, error }).catch(e => debugLogger.log('error', e));
     }
 
     function takeHandle(arg: { name: string, seq: number }) {
@@ -860,19 +858,29 @@ export class PageBinding {
       return handle;
     }
 
-    function deliverResult(arg: { name: string, seq: number, result?: any, error?: any }) {
-      const callbacks = (globalThis as any)[arg.name]['callbacks'];
-      if ('error' in arg)
-        callbacks.get(arg.seq).reject(arg.error);
-      else
-        callbacks.get(arg.seq).resolve(arg.result);
-      callbacks.delete(arg.seq);
+    function deliverResult(arg: { name: string, seq: number, result: any }) {
+      (globalThis as any)[arg.name]['callbacks'].get(arg.seq).resolve(arg.result);
+      (globalThis as any)[arg.name]['callbacks'].delete(arg.seq);
+    }
+
+    function deliverError(arg: { name: string, seq: number, message: string, stack: string | undefined }) {
+      const error = new Error(arg.message);
+      error.stack = arg.stack;
+      (globalThis as any)[arg.name]['callbacks'].get(arg.seq).reject(error);
+      (globalThis as any)[arg.name]['callbacks'].delete(arg.seq);
+    }
+
+    function deliverErrorValue(arg: { name: string, seq: number, error: any }) {
+      (globalThis as any)[arg.name]['callbacks'].get(arg.seq).reject(arg.error);
+      (globalThis as any)[arg.name]['callbacks'].delete(arg.seq);
     }
   }
 }
 
-function addPageBinding(playwrightBinding: string, bindingName: string, needsHandle: boolean, utilityScriptSerializers: ReturnType<typeof source>) {
-  const binding = (globalThis as any)[playwrightBinding];
+function addPageBinding(bindingName: string, needsHandle: boolean, utilityScriptSerializers: ReturnType<typeof source>) {
+  const binding = (globalThis as any)[bindingName];
+  if (binding.__installed)
+    return;
   (globalThis as any)[bindingName] = (...args: any[]) => {
     const me = (globalThis as any)[bindingName];
     if (needsHandle && args.slice(1).some(arg => arg !== undefined))
@@ -911,9 +919,8 @@ function addPageBinding(playwrightBinding: string, bindingName: string, needsHan
 
 export class InitScript {
   readonly source: string;
-  readonly internal: boolean;
 
-  constructor(source: string, internal?: boolean) {
+  constructor(source: string) {
     const guid = createGuid();
     this.source = `(() => {
       globalThis.__pwInitScripts = globalThis.__pwInitScripts || {};
@@ -923,7 +930,6 @@ export class InitScript {
       globalThis.__pwInitScripts[${JSON.stringify(guid)}] = true;
       ${source}
     })();`;
-    this.internal = !!internal;
   }
 }
 

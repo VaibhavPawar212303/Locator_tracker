@@ -136,10 +136,10 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
 
     // Filter file suites for all projects.
     for (const [project, fileSuites] of testRun.projectSuites) {
-      const projectSuite = createProjectSuite(project, fileSuites);
+      const filteredFileSuites = additionalFileMatcher ? fileSuites.filter(fileSuite => additionalFileMatcher(fileSuite.location!.file)) : fileSuites;
+      const projectSuite = createProjectSuite(project, filteredFileSuites);
       projectSuites.set(project, projectSuite);
-
-      const filteredProjectSuite = filterProjectSuite(projectSuite, { cliFileFilters, cliTitleMatcher, testIdMatcher: config.testIdMatcher, additionalFileMatcher });
+      const filteredProjectSuite = filterProjectSuite(projectSuite, { cliFileFilters, cliTitleMatcher, testIdMatcher: config.testIdMatcher });
       filteredProjectSuites.set(project, filteredProjectSuite);
     }
   }
@@ -200,8 +200,8 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     const projectClosure = new Map(buildProjectsClosure(rootSuite.suites.map(suite => suite._fullProject!)));
 
     // Clone file suites for dependency projects.
-    for (const [project, level] of projectClosure.entries()) {
-      if (level === 'dependency')
+    for (const project of projectClosure.keys()) {
+      if (projectClosure.get(project) === 'dependency')
         rootSuite._prependSuite(buildProjectSuite(project, projectSuites.get(project)!));
     }
   }
@@ -225,9 +225,9 @@ function createProjectSuite(project: FullProjectInternal, fileSuites: Suite[]): 
   return projectSuite;
 }
 
-function filterProjectSuite(projectSuite: Suite, options: { cliFileFilters: TestFileFilter[], cliTitleMatcher?: Matcher, testIdMatcher?: Matcher, additionalFileMatcher?: Matcher }): Suite {
+function filterProjectSuite(projectSuite: Suite, options: { cliFileFilters: TestFileFilter[], cliTitleMatcher?: Matcher, testIdMatcher?: Matcher }): Suite {
   // Fast path.
-  if (!options.cliFileFilters.length && !options.cliTitleMatcher && !options.testIdMatcher && !options.additionalFileMatcher)
+  if (!options.cliFileFilters.length && !options.cliTitleMatcher && !options.testIdMatcher)
     return projectSuite;
 
   const result = projectSuite._deepClone();
@@ -237,8 +237,6 @@ function filterProjectSuite(projectSuite: Suite, options: { cliFileFilters: Test
     filterByTestIds(result, options.testIdMatcher);
   filterTestsRemoveEmptySuites(result, (test: TestCase) => {
     if (options.cliTitleMatcher && !options.cliTitleMatcher(test._grepTitle()))
-      return false;
-    if (options.additionalFileMatcher && !options.additionalFileMatcher(test.location.file))
       return false;
     return true;
   });

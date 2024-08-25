@@ -56,7 +56,7 @@ module.exports = function lint(documentation, jsSources, apiFileName) {
       continue;
     }
     for (const member of cls.membersArray) {
-      if (member.kind === 'event' || member.alias === 'removeAllListeners')
+      if (member.kind === 'event')
         continue;
       const params = methods.get(member.alias);
       if (!params) {

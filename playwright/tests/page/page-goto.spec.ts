@@ -179,11 +179,7 @@ it('should work with Cross-Origin-Opener-Policy after redirect', async ({ page, 
   expect(firstRequest.url()).toBe(server.PREFIX + '/redirect');
 });
 
-it('should properly cancel Cross-Origin-Opener-Policy navigation', {
-  annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/32107' },
-}, async ({ page, server, browserName, isLinux, headless }) => {
-  it.fixme(browserName === 'webkit' && isLinux, 'Started failing after https://commits.webkit.org/281488@main');
-  it.fixme(browserName === 'chromium' && headless, 'COOP navigation cancels the one that starts later');
+it('should properly cancel Cross-Origin-Opener-Policy navigation', async ({ page, server }) => {
   server.setRoute('/empty.html', (req, res) => {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.end();
@@ -366,7 +362,7 @@ it('should fail when main resources failed to load', async ({ page, browserName,
   } else if (browserName === 'webkit' && isWindows && mode === 'service2') {
     expect(error.message).toContain(`proxy handshake error`);
   } else if (browserName === 'webkit' && isWindows) {
-    expect(error.message).toContain(`Could not connect to server`);
+    expect(error.message).toContain(`Couldn\'t connect to server`);
   } else if (browserName === 'webkit') {
     if (mode === 'service2')
       expect(error.message).toContain('Connection refused');

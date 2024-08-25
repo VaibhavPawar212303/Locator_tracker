@@ -17,16 +17,10 @@
 import React from 'react';
 import { type Setting, settings } from './uiUtils';
 
-declare global {
-  interface Document {
-    playwrightThemeInitialized?: boolean;
-  }
-}
-
 export function applyTheme() {
-  if (document.playwrightThemeInitialized)
+  if ((document as any).playwrightThemeInitialized)
     return;
-  document.playwrightThemeInitialized = true;
+  (document as any).playwrightThemeInitialized = true;
   document!.defaultView!.addEventListener('focus', (event: any) => {
     if (event.target.document.nodeType === Node.DOCUMENT_NODE)
       document.body.classList.remove('inactive');
@@ -45,8 +39,12 @@ type Theme = 'dark-mode' | 'light-mode';
 
 const listeners = new Set<(theme: Theme) => void>();
 export function toggleTheme() {
-  const oldTheme = currentTheme();
-  const newTheme = oldTheme === 'dark-mode' ? 'light-mode' : 'dark-mode';
+  const oldTheme = settings.getString('theme', 'light-mode');
+  let newTheme: Theme;
+  if (oldTheme === 'dark-mode')
+    newTheme = 'light-mode';
+  else
+    newTheme = 'dark-mode';
 
   if (oldTheme)
     document.body.classList.remove(oldTheme);

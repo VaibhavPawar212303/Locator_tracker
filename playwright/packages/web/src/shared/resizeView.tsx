@@ -82,7 +82,6 @@ export const ResizeView: React.FC<{
     />}
     {offsets.map((offset, index) => {
       return <div
-        key={index}
         style={{
           ...dividerStyle,
           top: orientation === 'horizontal' ? 0 : offset,

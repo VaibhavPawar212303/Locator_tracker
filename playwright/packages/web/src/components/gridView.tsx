@@ -76,7 +76,6 @@ export function GridView<T>(model: GridViewProps<T>) {
       <div className='grid-view-header'>
         {model.columns.map((column, i) => {
           return <div
-            key={model.columnTitle(column)}
             className={'grid-view-header-cell ' + sortingHeader(column, model.sorting)}
             style={{
               width: i < model.columns.length - 1 ? model.columnWidths.get(column) : undefined,
@@ -98,7 +97,6 @@ export function GridView<T>(model: GridViewProps<T>) {
             {model.columns.map((column, i) => {
               const { body, title } = model.render(item, column, index);
               return <div
-                key={model.columnTitle(column)}
                 className={`grid-view-cell grid-view-column-${String(column)}`}
                 title={title}
                 style={{
@@ -123,7 +121,7 @@ export function GridView<T>(model: GridViewProps<T>) {
         onIconClicked={model.onIconClicked}
         noItemsMessage={model.noItemsMessage}
         dataTestId={model.dataTestId}
-        notSelectable={model.notSelectable}
+        noHighlightOnHover={model.noHighlightOnHover}
       ></ListView>
     </div>
   </div>;

@@ -38,7 +38,7 @@ declare global {
     playwrightSetSelector: (selector: string, focus?: boolean) => void;
     playwrightUpdateLogs: (callLogs: CallLog[]) => void;
     dispatch(data: EventData): Promise<void>;
-    saveSettings?(): Promise<void>;
+    saveSettings(data: any): Promise<void>;
   }
 }
 
@@ -127,7 +127,6 @@ export class RecorderApp extends EventEmitter implements IRecorderApp {
         useWebSocket: !!process.env.PWTEST_RECORDER_PORT,
         handleSIGINT,
         args: process.env.PWTEST_RECORDER_PORT ? [`--remote-debugging-port=${process.env.PWTEST_RECORDER_PORT}`] : [],
-        executablePath: inspectedContext._browser.options.isChromium ? inspectedContext._browser.options.customExecutablePath : undefined,
       }
     });
     const controller = new ProgressController(serverSideCallMetadata(), context._browser);

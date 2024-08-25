@@ -34,10 +34,6 @@
   padding-left: 5px;
 }
 
-.list-view-content.not-selectable > .list-view-entry {
-  cursor: inherit;
-}
-
 .list-view-entry.highlighted:not(.selected) {
   background-color: var(--vscode-list-inactiveSelectionBackground) !important;
 }

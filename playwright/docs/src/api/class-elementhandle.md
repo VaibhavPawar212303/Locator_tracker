@@ -866,7 +866,7 @@ await handle.SelectOptionAsync(new[] {
 ### option: ElementHandle.selectOption.force = %%-input-force-%%
 * since: v1.13
 
-### option: ElementHandle.selectOption.noWaitAfter = %%-input-no-wait-after-removed-%%
+### option: ElementHandle.selectOption.noWaitAfter = %%-input-no-wait-after-%%
 * since: v1.8
 
 ### option: ElementHandle.selectOption.timeout = %%-input-timeout-%%

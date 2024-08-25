@@ -30,7 +30,7 @@ import { eventsHelper } from '../../utils/eventsHelper';
 import { helper } from '../helper';
 import type { JSHandle } from '../javascript';
 import * as network from '../network';
-import { type InitScript, PageBinding, type PageDelegate } from '../page';
+import type { InitScript, PageBinding, PageDelegate } from '../page';
 import { Page } from '../page';
 import type { Progress } from '../progress';
 import type * as types from '../types';
@@ -179,7 +179,6 @@ export class WKPage implements PageDelegate {
     const promises: Promise<any>[] = [
       // Resource tree should be received before first execution context.
       session.send('Runtime.enable'),
-      session.send('Runtime.addBinding', { name: PageBinding.kPlaywrightBinding }),
       session.send('Page.createUserWorld', { name: UTILITY_WORLD_NAME }).catch(_ => {}),  // Worlds are per-process
       session.send('Console.enable'),
       session.send('Network.enable'),
@@ -201,6 +200,8 @@ export class WKPage implements PageDelegate {
     const emulatedMedia = this._page.emulatedMedia();
     if (emulatedMedia.media || emulatedMedia.colorScheme || emulatedMedia.reducedMotion || emulatedMedia.forcedColors)
       promises.push(WKPage._setEmulateMedia(session, emulatedMedia.media, emulatedMedia.colorScheme, emulatedMedia.reducedMotion, emulatedMedia.forcedColors));
+    for (const binding of this._page.allBindings())
+      promises.push(session.send('Runtime.addBinding', { name: binding.name }));
     const bootstrapScript = this._calculateBootstrapScript();
     if (bootstrapScript.length)
       promises.push(session.send('Page.setBootstrapScript', { source: bootstrapScript }));
@@ -767,11 +768,21 @@ export class WKPage implements PageDelegate {
     });
   }
 
+  async exposeBinding(binding: PageBinding): Promise<void> {
+    this._session.send('Runtime.addBinding', { name: binding.name });
+    await this._updateBootstrapScript();
+    await Promise.all(this._page.frames().map(frame => frame.evaluateExpression(binding.source).catch(e => {})));
+  }
+
+  async removeExposedBindings(): Promise<void> {
+    await this._updateBootstrapScript();
+  }
+
   async addInitScript(initScript: InitScript): Promise<void> {
     await this._updateBootstrapScript();
   }
 
-  async removeNonInternalInitScripts() {
+  async removeInitScripts() {
     await this._updateBootstrapScript();
   }
 
@@ -784,7 +795,11 @@ export class WKPage implements PageDelegate {
     }
     scripts.push('if (!window.safari) window.safari = { pushNotification: { toString() { return "[object SafariRemoteNotification]"; } } };');
     scripts.push('if (!window.GestureEvent) window.GestureEvent = function GestureEvent() {};');
-    scripts.push(...this._page.allInitScripts().map(script => script.source));
+
+    for (const binding of this._page.allBindings())
+      scripts.push(binding.source);
+    scripts.push(...this._browserContext.initScripts.map(s => s.source));
+    scripts.push(...this._page.initScripts.map(s => s.source));
     return scripts.join(';\n');
   }
 

@@ -22,7 +22,8 @@ import type { Action } from './recorderActions';
 import type { MouseClickOptions } from './utils';
 import { toModifiers } from './utils';
 import { deviceDescriptors } from '../deviceDescriptors';
-import { escapeWithQuotes, asLocator } from '../../utils';
+import { escapeWithQuotes } from '../../utils/isomorphic/stringUtils';
+import { asLocator } from '../../utils/isomorphic/locatorGenerators';
 
 export class JavaScriptLanguageGenerator implements LanguageGenerator {
   id: string;
