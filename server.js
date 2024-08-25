@@ -1,95 +1,126 @@
 const express = require('express');
 const axios = require('axios');
-const cheerio = require('cheerio');
-const urlModule = require('url');
-const bodyParser = require('body-parser');
-const path = require('path');
+const { parse } = require('node-html-parser');
+const cors = require('cors');
 
 const app = express();
 const port = 3000;
 
-// Middleware to parse JSON bodies
-app.use(bodyParser.json());
+// Enable CORS
+app.use(cors());
 
-// Serve static files from the public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from the "public" directory
+app.use(express.static('public'));
 
-const trackingData = []; // Array to store tracking data
-
-app.get('/', async (req, res) => {
-    const url = req.query.url;
-
-    if (!url) {
+// Fetch and serve web application content
+app.get('/fetch', async (req, res) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl) {
         return res.status(400).send('URL is required');
     }
 
     try {
-        const response = await axios.get(url);
-        const baseUrl = urlModule.parse(url).protocol + '//' + urlModule.parse(url).host;
-        const fetchedHtml = response.data;
-
-        // Load HTML into cheerio for manipulation
-        const $ = cheerio.load(fetchedHtml);
-
-        // Update relative URLs for CSS and other assets
-        $('link[rel="stylesheet"]').each((index, element) => {
-            const href = $(element).attr('href');
-            if (href && !href.startsWith('http') && !href.startsWith('//')) {
-                $(element).attr('href', urlModule.resolve(baseUrl, href));
+        // Configure Axios to include User-Agent header
+        const axiosConfig = {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
-        });
+        };
 
-        $('script').each((index, element) => {
-            const src = $(element).attr('src');
-            if (src && !src.startsWith('http') && !src.startsWith('//')) {
-                $(element).attr('src', urlModule.resolve(baseUrl, src));
-            }
-        });
+        // Fetch the main HTML content from the provided URL
+        const response = await axios.get(targetUrl, axiosConfig);
+        let html = response.data;
 
-        $('img').each((index, element) => {
-            const src = $(element).attr('src');
-            if (src && !src.startsWith('http') && !src.startsWith('//')) {
-                $(element).attr('src', urlModule.resolve(baseUrl, src));
-            }
-        });
+        // Parse HTML to extract CSS, JS, and image links
+        const root = parse(html);
+        const cssLinks = root.querySelectorAll('link[rel="stylesheet"]');
+        const jsLinks = root.querySelectorAll('script[src]');
+        const imgLinks = root.querySelectorAll('img[src]');
 
-        // Send the response that opens the URL in a new "minimized" window
-        res.send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Opening Minimized Window</title>
-                <script>
-                    window.onload = function() {
-                        window.open("${url}", "_blank", "width=12000,height=1000,left=-10000,top=-10000");
-                    };
-                </script>
-            </head>
-            <body>
-                <h1>The content is being opened in a minimized window...</h1>
-            </body>
-            </html>
-        `);
+        // Inline CSS, JS, and handle images
+        html = await inlineResources(html, cssLinks, jsLinks, imgLinks, targetUrl);
+
+        // Clean up unwanted content
+        html = cleanUpHTML(html);
+
+        res.send(html);
     } catch (error) {
-        console.error('Error fetching the URL:', error);
-        res.status(500).send('Error fetching the URL');
+        console.error('Error fetching the URL:', error.message);
+        res.status(error.response?.status || 500).send('Error fetching the URL');
     }
 });
 
-// Endpoint to receive tracking data
-app.post('/track', (req, res) => {
-    console.log('Received tracking data:', req.body); // Log received data for debugging
-    trackingData.push(req.body); // Store the tracking data
-    res.status(200).send('Tracking data received');
-});
+// Helper function to fetch and inline CSS, JS, and handle images
+async function inlineResources(html, cssLinks, jsLinks, imgLinks, baseUrl) {
+    const promises = [];
+    const processedImages = new Set(); // To track processed image URLs
 
-// Endpoint to retrieve tracking data
-app.get('/tracking-data', (req, res) => {
-    res.json(trackingData); // Return the array of tracking data
-});
+    // Add base tag to resolve relative URLs
+    if (!html.includes('<base href="')) {
+        html = `<base href="${baseUrl}">\n` + html;
+    }
 
+    // Inline CSS
+    cssLinks.forEach(link => {
+        if (link.getAttribute('href')) {
+            const cssUrl = new URL(link.getAttribute('href'), baseUrl).href;
+            promises.push(
+                axios.get(cssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(response => {
+                    const css = `<style>${response.data}</style>`;
+                    html = html.replace(link.outerHTML, css);
+                }).catch(err => console.error(`Error fetching CSS ${cssUrl}: ${err.message}`))
+            );
+        }
+    });
+
+    // Inline JS
+    jsLinks.forEach(script => {
+        if (script.getAttribute('src')) {
+            const jsUrl = new URL(script.getAttribute('src'), baseUrl).href;
+            promises.push(
+                axios.get(jsUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(response => {
+                    const js = `<script>${response.data}</script>`;
+                    html = html.replace(script.outerHTML, js);
+                }).catch(err => console.error(`Error fetching JS ${jsUrl}: ${err.message}`))
+            );
+        }
+    });
+
+    // Handle Images
+    imgLinks.forEach(img => {
+        if (img.getAttribute('src')) {
+            const imgUrl = new URL(img.getAttribute('src'), baseUrl).href;
+            if (!processedImages.has(imgUrl)) { // Check if image is already processed
+                processedImages.add(imgUrl); // Mark as processed
+                promises.push(
+                    axios.get(imgUrl, { responseType: 'arraybuffer', headers: { 'User-Agent': 'Mozilla/5.0' } }).then(response => {
+                        const imgBase64 = Buffer.from(response.data, 'binary').toString('base64');
+                        const imgSrc = `data:${response.headers['content-type']};base64,${imgBase64}`;
+                        html = html.replace(img.outerHTML, `<img src="${imgSrc}" />`);
+                    }).catch(err => console.error(`Error fetching image ${imgUrl}: ${err.message}`))
+                );
+            }
+        }
+    });
+
+    await Promise.all(promises);
+    return html;
+}
+
+// Helper function to clean up unwanted content
+function cleanUpHTML(html) {
+    // Remove unwanted embedded data
+    html = html.replace(/(?:[^'\\]|\\[\s\S])*\/(?:[^'\\]|\\[\s\S])*\/,/g, ''); // Adjust the pattern as needed
+    html = html.replace(/(?:[^'\\]|\\[\s\S])*'(?:[^'\\]|\\[\s\S])*'/g, ''); // Adjust the pattern as needed
+    html = html.replace(/(?:[^'\\]|\\[\s\S])*"(?:[^'\\]|\\[\s\S])*"/g, ''); // Adjust the pattern as needed
+    html = html.replace(/<script[^>]*>.*?<\/script>/gis, ''); // Remove all script tags
+    html = html.replace(/<style[^>]*>.*?<\/style>/gis, ''); // Remove all style tags
+    html = html.replace(/<!--.*?-->/g, ''); // Remove comments
+
+    return html;
+}
+
+// Start the server
 app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
