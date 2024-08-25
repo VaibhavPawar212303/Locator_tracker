@@ -1,5 +1,5 @@
 {
-  "name": "playwright-crx",
+  "name": "playwright-extension-for-user-actions",
   "version": "0.8.0",
   "engines": {
     "node": ">=16"
@@ -9,34 +9,10 @@
   },
   "license": "Apache-2.0",
   "scripts": {
-    "ci:pw:core-utils-bundle": "npm ci --prefix ./playwright/packages/playwright-core/bundles/utils",
-    "ci:pw:core-zip-bundle": "npm ci --prefix ./playwright/packages/playwright-core/bundles/zip",
-    "ci:pw:test-babel-bundle": "npm ci --prefix ./playwright/packages/playwright/bundles/babel",
-    "ci:pw:test-expect-bundle": "npm ci --prefix ./playwright/packages/playwright/bundles/expect",
-    "ci:pw:test-utils-bundle": "npm ci --prefix ./playwright/packages/playwright/bundles/utils",
-    "ci:pw:bundles": "npm run ci:pw:core-utils-bundle && npm run ci:pw:core-zip-bundle && npm run ci:pw:test-babel-bundle && npm run ci:pw:test-expect-bundle && npm run ci:pw:test-utils-bundle",
-    "clean:pw:bundles": "rimraf -g ./playwright/packages/playwright-core/bundles/**/node_modules && rimraf -g ./playwright/packages/playwright/bundles/**/node_modules",
-    "clean:pw": "npm run clean:pw:bundles && cd ./playwright && npm run clean",
-    "generate:pw": "cd ./playwright && node ./utils/generate_injected.js",
-    "build:examples:todomvc": "npm run build --prefix ./examples/todomvc-crx",
-    "build:examples:recorder": "npm run build --prefix ./examples/recorder-crx",
-    "build:examples": "npm run build:examples:todomvc && npm run build:examples:recorder",
-    "clean:examples": "rimraf ./examples/recorder-crx/dist && rimraf ./examples/todomvc-crx/dist",
-    "build:tests": "npm run build --prefix ./tests",
-    "clean:tests": "rimraf ./tests/playwright-report && rimraf ./tests/test-results",
-    "generate:crx": "node ./utils/generate_test_types.js",
-    "build:crx": "npm run generate:pw && npm run generate:crx && vite build",
-    "clean:crx": "rimraf ./lib",
-    "build": "npm run ci:pw:bundles && npm run build:crx && npm run build:examples && npm run build:tests",
-    "clean": "npm run clean:pw && npm run clean:examples && npm run clean:tests && npm run clean:crx",
-    "test:install": "cd ./tests && npx playwright install --with-deps chromium chromium-tip-of-tree",
-    "test": "cd ./tests && npx playwright test",
-    "test-ui": "cd ./tests && npx playwright test --ui --timeout 0"
+    "build:examples:recorder": "npm run build --prefix ./examples/recorder-crx"
   },
   "workspaces": [
-    "examples/recorder-crx",
-    "examples/todomvc-crx",
-    "tests"
+    "examples/recorder-crx"
   ],
   "exports": {
     ".": {
@@ -90,6 +66,7 @@
     "zip-bundle": "file:./playwright/packages/playwright-core/bundles/zip"
   },
   "dependencies": {
-    "playwright-crx": "file:"
+    "playwright-crx": "file:",
+    "playwright-extension-for-user-actions": "file:"
   }
 }
