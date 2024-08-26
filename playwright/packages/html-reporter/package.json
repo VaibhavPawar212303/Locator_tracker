@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "ansi-to-html": "^0.7.2"
+    "ansi-to-html": "^0.7.2",
+    "html-reporter": "file:"
   }
 }

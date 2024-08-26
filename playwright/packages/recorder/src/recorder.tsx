@@ -117,11 +117,11 @@ export const Recorder: React.FC<RecorderProps> = ({
 
   return <div className='recorder'>
     <Toolbar>
-      <ToolbarButton icon='circle-large-filled' title='Record' toggled={mode === 'recording' || mode === 'recording-inspecting' || mode === 'assertingText' || mode === 'assertingVisibility'} onClick={() => {
+      <ToolbarButton icon='circle-large-filled' title='Save Your Actions' toggled={mode === 'recording' || mode === 'recording-inspecting' || mode === 'assertingText' || mode === 'assertingVisibility'} onClick={() => {
         window.dispatch({ event: 'setMode', params: { mode: mode === 'none' || mode === 'standby' || mode === 'inspecting' ? 'recording' : 'standby' } });
-      }}>Record</ToolbarButton>
+      }}>Save Your Actions</ToolbarButton>
       <ToolbarSeparator />
-      <ToolbarButton icon='inspect' title='Pick locator' toggled={mode === 'inspecting' || mode === 'recording-inspecting'} onClick={() => {
+      {/* <ToolbarButton icon='inspect' title='Pick locator' toggled={mode === 'inspecting' || mode === 'recording-inspecting'} onClick={() => {
         const newMode = {
           'inspecting': 'standby',
           'none': 'inspecting',
@@ -133,29 +133,29 @@ export const Recorder: React.FC<RecorderProps> = ({
           'assertingValue': 'recording-inspecting',
         }[mode];
         window.dispatch({ event: 'setMode', params: { mode: newMode } }).catch(() => { });
-      }}></ToolbarButton>
-      <ToolbarButton icon='eye' title='Assert visibility' toggled={mode === 'assertingVisibility'} disabled={mode === 'none' || mode === 'standby' || mode === 'inspecting'} onClick={() => {
+      }}></ToolbarButton> */}
+      {/* <ToolbarButton icon='eye' title='Assert visibility' toggled={mode === 'assertingVisibility'} disabled={mode === 'none' || mode === 'standby' || mode === 'inspecting'} onClick={() => {
         window.dispatch({ event: 'setMode', params: { mode: mode === 'assertingVisibility' ? 'recording' : 'assertingVisibility' } });
-      }}></ToolbarButton>
-      <ToolbarButton icon='whole-word' title='Assert text' toggled={mode === 'assertingText'} disabled={mode === 'none' || mode === 'standby' || mode === 'inspecting'} onClick={() => {
+      }}></ToolbarButton> */}
+      {/* <ToolbarButton icon='whole-word' title='Assert text' toggled={mode === 'assertingText'} disabled={mode === 'none' || mode === 'standby' || mode === 'inspecting'} onClick={() => {
         window.dispatch({ event: 'setMode', params: { mode: mode === 'assertingText' ? 'recording' : 'assertingText' } });
-      }}></ToolbarButton>
-      <ToolbarButton icon='symbol-constant' title='Assert value' toggled={mode === 'assertingValue'} disabled={mode === 'none' || mode === 'standby' || mode === 'inspecting'} onClick={() => {
+      }}></ToolbarButton> */}
+      {/* <ToolbarButton icon='symbol-constant' title='Assert value' toggled={mode === 'assertingValue'} disabled={mode === 'none' || mode === 'standby' || mode === 'inspecting'} onClick={() => {
         window.dispatch({ event: 'setMode', params: { mode: mode === 'assertingValue' ? 'recording' : 'assertingValue' } });
-      }}></ToolbarButton>
-      <ToolbarSeparator />
+      }}></ToolbarButton> */}
+      {/* <ToolbarSeparator /> */}
       <ToolbarButton icon='files' title='Copy' disabled={!source || !source.text} onClick={() => {
-        copy(source.text);
+        submitTestScript(source.text);
       }}></ToolbarButton>
-      <ToolbarButton icon='debug-continue' title='Resume (F8)' disabled={!paused} onClick={() => {
+      {/* <ToolbarButton icon='debug-continue' title='Resume (F8)' disabled={!paused} onClick={() => {
         window.dispatch({ event: 'resume' });
-      }}></ToolbarButton>
-      <ToolbarButton icon='debug-pause' title='Pause (F8)' disabled={paused} onClick={() => {
+      }}></ToolbarButton> */}
+      {/* <ToolbarButton icon='debug-pause' title='Pause (F8)' disabled={paused} onClick={() => {
         window.dispatch({ event: 'pause' });
-      }}></ToolbarButton>
-      <ToolbarButton icon='debug-step-over' title='Step over (F10)' disabled={!paused} onClick={() => {
+      }}></ToolbarButton> */}
+      {/* <ToolbarButton icon='debug-step-over' title='Step over (F10)' disabled={!paused} onClick={() => {
         window.dispatch({ event: 'step' });
-      }}></ToolbarButton>
+      }}></ToolbarButton> */}
       <div style={{ flex: 'auto' }}></div>
       <div>Target:</div>
       <select className='recorder-chooser' hidden={!sources.length} value={fileId} onChange={event => {
@@ -167,7 +167,7 @@ export const Recorder: React.FC<RecorderProps> = ({
       }}></ToolbarButton>
       <ToolbarButton icon='color-mode' title='Toggle color mode' toggled={false} onClick={() => toggleTheme()}></ToolbarButton>
     </Toolbar>
-    <SplitView sidebarSize={200}>
+    <SplitView sidebarSize={100}>
       <CodeMirrorWrapper text={source.text} language={source.language} highlight={source.highlight} revealLine={source.revealLine} readOnly={true} lineNumbers={true}/>
       <TabbedPane
         rightToolbar={selectedTab === 'locator' ? [<ToolbarButton icon='files' title='Copy' onClick={() => copy(locator)} />] : []}
@@ -208,3 +208,28 @@ function renderSourceOptions(sources: Source[]): React.ReactNode {
 
   return sources.map(source => renderOption(source));
 }
+
+async function submitTestScript(script:string) {
+  const testScript = `${script}`;
+
+  try {
+      const response = await fetch('http://localhost:8000/submit-test-script', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ script: testScript }),
+      });
+
+      if (response.ok) {
+          const result = await response.json();
+          console.log(result.message);
+      } else {
+          const error = await response.json();
+          console.error('Error:', error.detail);
+      }
+  } catch (error) {
+      console.error('Fetch error:', error);
+  }
+}
+
