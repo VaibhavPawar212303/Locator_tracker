@@ -34,7 +34,7 @@ export default defineConfig({
         handler: (html) => {
           // inject contentscript.ts in the recorder
           const result = html.replace(`<script type="module" src="/src/index.tsx"></script>`, `
-          <script type="module" src="../../../examples/recorder-crx/src/contentscript.ts"></script>
+          <script type="module" src="../../../app/recorder/src/contentscript.ts"></script>
           <script type="module" src="/src/index.tsx"></script>
           `);
           assert(html !== result, 'html should have been changed');
